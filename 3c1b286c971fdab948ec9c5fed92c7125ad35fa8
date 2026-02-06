@@ -22,3 +22,39 @@ Expected outcomes:
 - Verify all generated API methods work correctly
 - Document any spec vs. implementation differences
 - Create integration test examples from real usage
+
+---
+
+✅ RESOLVED: Yamaha MusicCast API tested with home equipment (Feb 6, 2026)
+
+Successfully deployed and tested the generated Motoko client against actual
+Yamaha MusicCast-compatible hardware at home.
+
+Test sequence executed:
+1. Power on the system
+2. Volume control with absolute values (5% to 30% in increments)
+   - Used #one_of_0(n) variant with Int.toText() serialization
+3. Volume control with relative adjustments (10 down steps)
+   - Used #SetVolumeVolumeParameterOneOf(#down) with .toJSON() serialization
+4. Volume control with relative adjustments (3 up steps)
+   - Used #SetVolumeVolumeParameterOneOf(#up) with .toJSON() serialization
+5. Power off (standby)
+
+Result: SUCCESS - "Test sequence completed - raised to 30%, 10 down, 3 up, powered off"
+
+Verified features:
+✅ Generated API methods work with real hardware
+✅ OneOf URL parameter serialization with toText() helper
+✅ Mixed variant types (Nat + enum) serialize correctly
+✅ HTTP outcalls to physical devices successful
+✅ Real-world API compatibility confirmed
+✅ All generated code typechecks with moc
+
+Files tested:
+- samples/client/yamaha-musiccast/motoko-test/generated/Apis/ZoneApi.mo
+- samples/client/yamaha-musiccast/motoko-test/generated/Apis/PowerApi.mo
+- samples/client/yamaha-musiccast/motoko-test/generated/Models/SetVolumeVolumeParameter.mo
+- samples/client/yamaha-musiccast/motoko-test/src/main.mo
+
+This real-world validation proves the Janus Types implementation and oneOf
+support work correctly with production hardware and actual API endpoints.
