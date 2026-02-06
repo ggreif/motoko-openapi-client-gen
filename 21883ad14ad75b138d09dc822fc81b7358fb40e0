@@ -1,0 +1,83 @@
+TODO: Deduplicate identical inline enums
+
+When RESOLVE_INLINE_ENUMS is enabled, the generator creates separate model files
+for inline enum parameters even when they're identical to existing schema enums.
+
+Example from Petstore:
+- FindPetsByStatusStatusParameterInner.mo: #available, #pending, #sold
+- PetStatus.mo: #available, #pending, #sold
+These are identical but generated as separate files.
+
+Issues:
+1. **Naming awkwardness**: "StatusStatus" duplication in parameter names
+   - Operation: findPetsByStatus
+   - Parameter: status
+   - Array items suffix: Inner
+   - Result: FindPetsByStatusStatusParameterInner
+
+2. **Code duplication**: Identical enum definitions in multiple files
+   - Same variants, same toJSON/fromJSON logic
+   - Maintenance burden if enum values change
+
+3. **Lost semantic connection**: No indication these represent the same concept
+
+Root cause:
+- RESOLVE_INLINE_ENUMS (enabled in commit f4acd165b6e) creates model files
+  for inline parameter enums to provide type safety
+- No deduplication logic to detect when inline enum matches existing schema
+- Generator treats inline definitions independently from schema references
+
+Potential solutions:
+
+1. **Smart deduplication during generation**:
+   - Compare inline enum values against all existing schema enums
+   - If exact match found, reuse existing schema type instead of generating new file
+   - Implementation: In MotokoClientCodegen.fromProperty() or postProcessParameter()
+     * Check if parameter has inline enum (hasEnums && !isEnumRef)
+     * Compare allowableValues against all models in allModels
+     * If match found, convert to schema reference ($ref)
+
+2. **Improve naming for inline enums**:
+   - Detect "XxxYyyYyyParameter" pattern and simplify to "XxxYyyParameter"
+   - Strip duplicate consecutive words in generated names
+   - Add vendor extension x-original-name for traceability
+
+3. **Post-processing cleanup**:
+   - After all models generated, detect identical enums by comparing:
+     * Same number of variants
+     * Same variant names (order-independent)
+     * Same data type (Text vs Int)
+   - Replace duplicates with references to canonical version
+   - Delete duplicate files
+
+4. **OpenAPI spec guidance**:
+   - Recommend using $ref for enums instead of inline definitions
+   - Add warning when generator detects duplicate inline enum
+   - Suggest spec refactoring: extract inline enums to components/schemas
+
+Benefits of deduplication:
+- Cleaner generated code with fewer files
+- Better semantic accuracy (same concept = same type)
+- Improved type checking (same enum values are truly interchangeable)
+- Easier maintenance when enum values change
+
+Trade-offs:
+- Implementation complexity: need robust comparison logic
+- May lose parameter-specific type names (less self-documenting)
+- Could break if inline enum intentionally differs slightly from schema
+
+Recommended approach:
+Start with solution #1 (smart deduplication) because:
+- Most direct fix at generation time
+- Prevents duplication from being created
+- Leverages existing schema enum infrastructure
+- Can be conservative: only dedupe exact matches
+
+Implementation location:
+- MotokoClientCodegen.java: Add deduplication check in fromProperty()
+- Before creating new inline enum model, scan allModels for match
+- If found, set isEnum=false and dataType to existing schema name
+
+Priority: Medium (code quality improvement, not a bug)
+Complexity: Medium (requires comparison logic and type substitution)
+Impact: Cleaner generated code, better maintainability
