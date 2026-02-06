@@ -1,0 +1,55 @@
+TODO: Optimize optional field transformations with do ? expressions
+
+Current code in generated models uses verbose switch expressions for optional fields:
+
+```motoko
+availability_status = switch (json.availability_status) {
+    case (?v) AvailabilityEnum.fromJSON(v);
+    case null null
+};
+```
+
+This pattern appears throughout generated models when converting optional enum fields
+from JSON-facing to user-facing types.
+
+OPTIMIZATION: Use do ? expressions for cleaner, more idiomatic Motoko:
+
+```motoko
+availability_status = do ? { AvailabilityEnum.fromJSON(json.availability_status!)! };
+```
+
+The do ? block automatically propagates null values:
+- If json.availability_status is null, the first ! returns null, block returns null
+- If fromJSON returns null, the second ! returns null, block returns null
+- If both succeed, returns the unwrapped value
+
+Benefits:
+- More concise and readable
+- Idiomatic Motoko (follows Option monad pattern)
+- Reduces boilerplate in generated code
+- Same runtime behavior (null propagation)
+
+Implementation:
+- Update model.mustache template (lines ~135, ~145, ~166, ~170, ~195)
+- Change switch expression pattern to do ? block
+- Applies to both toJSON and fromJSON conversions
+- Only affects optional fields with enum/model conversions
+
+Files affected:
+- modules/openapi-generator/src/main/resources/motoko/model.mustache
+- All generated model files with optional enum/model fields
+
+Pattern locations in template:
+```mustache
+{{^required}}switch (value.{{name}}) { case (?v) ?{{{datatypeWithEnum}}}.toJSON(v); case null null }{{/required}}
+{{^required}}switch (json.{{name}}) { case (?v) {{{datatypeWithEnum}}}.fromJSON(v); case null null }{{/required}}
+```
+
+Optimized pattern:
+```mustache
+{{^required}}do ? { {{{datatypeWithEnum}}}.toJSON(value.{{name}}!)! }{{/required}}
+{{^required}}do ? { {{{datatypeWithEnum}}}.fromJSON(json.{{name}}!)! }{{/required}}
+```
+
+Priority: Low (optimization, not a bug)
+Impact: All generated models with optional enum/model fields
