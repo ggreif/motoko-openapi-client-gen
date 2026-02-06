@@ -1,0 +1,25 @@
+TODO: Implement proper URL serialization for structured query parameters
+
+Current state:
+- Array query params work but use debug_show() which produces Motoko syntax
+  Example: ?status=[#available, #pending] instead of ?status=available&status=pending
+- Object query params (deepObject style) not implemented for Motoko yet
+  Test specs exist: deepobject.yaml, deepobject-array-with-pattern.yaml
+- Map query params (additionalProperties) not tested for Motoko
+
+Needed improvements:
+1. Replace debug_show() with proper URL encoding for arrays
+   - Support style: form with explode: true/false
+   - Support pipeDelimited, spaceDelimited
+2. Implement deepObject style for object query parameters
+   - Serialization: ?filter[name]=John&filter[age]=30
+3. Add deepObject/structured query param tests to type-coverage spec
+4. Test map query parameters with additionalProperties
+
+References:
+- samples/client/petstore/motoko/Apis/PetApi.mo:findPetsByStatus (uses debug_show)
+- modules/openapi-generator/src/test/resources/3_0/deepobject.yaml
+- OpenAPI 3.0 spec: Parameter Object serialization styles
+
+Impact: Medium - affects API usability for complex query parameters
+Priority: Low - arrays work (just not pretty), objects are uncommon in query params
