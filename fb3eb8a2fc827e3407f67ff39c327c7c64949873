@@ -1,8 +1,9 @@
-TODO: Fix Motoko generator bugs found during Yamaha API testing (2026-02-05)
+✅ RESOLVED: Motoko Generator oneOf and Inline Enum Bugs (Fixed in 5bd7a99)
 
-## 1. oneOf Handling Bug
+## Original Issues
 
-Issue: Generator creates empty record {} for oneOf parameter types instead of proper variant types.
+### 1. oneOf Handling Bug
+Issue: Generator created empty record {} for oneOf parameter types instead of proper variant types.
 
 Example: SetVolumeVolumeParameter in the spec uses oneOf with:
 - type: integer, minimum: 0
@@ -11,17 +12,7 @@ Example: SetVolumeVolumeParameter in the spec uses oneOf with:
 Expected: Variant type { #integer : Nat; #up; #down }
 Generated: Empty record {}
 
-Manual Fix Applied: Updated SetVolumeVolumeParameter.mo to include proper variant types in both the main type and JSON submodule, with conversion functions using Int.abs for integer validation.
-
-IMPORTANT: The generator should deduce Motoko types from OpenAPI constraints:
-- 'type: integer, minimum: 0' should map to Nat (not Int)
-- 'type: integer' without minimum: 0 should map to Int
-- This is the standard OpenAPI way to express non-negative integers
-- The generator can inspect the 'minimum' constraint to choose the best-fitting Motoko type
-- Conversion functions (fromJSON) should validate the constraint and reject negative values
-
-## 2. Inline Enum Bug
-
+### 2. Inline Enum Bug
 Issue: When parameters have inline enum definitions (not separate models), the generator:
 1. Creates switch statements with variant patterns (correct)
 2. BUT types the parameter as Text instead of a variant type (incorrect)
@@ -29,23 +20,57 @@ Issue: When parameters have inline enum definitions (not separate models), the g
 Result: Type error: 'variant pattern cannot consume expected type Text'
 
 Example: ZoneApi.mo:227 - The input parameter in setInput function:
-- Should be: variant type { #net_radio; #napster; #spotify; #juke; #qobuz; #tidal; #deezer; #server; #bluetooth; #airplay; #mc_link; #usb }
+- Should be: variant type { #net_radio; #napster; #spotify; ... }
 - Generated as: Text
-- But code contains: switch (input) { case (#net_radio) net_radio; case (#napster) napster; ... }
+- But code contains: switch (input) { case (#net_radio) net_radio; ... }
 
-Similar Issue: PowerApi.mo:88 had broken switch statement trying to match variant patterns against Text parameter. Fixed manually by removing the switch and using the Text value directly.
+## Resolution (Commit 5bd7a99)
 
-## Root Cause
+✅ OneOf types now generate proper variant types
+✅ Nat type deduction from `minimum >= 0` constraint implemented
+✅ Inline enums expanded into multiple unit variants
+✅ Motoko-facing types use Nat for non-negative integers
+✅ JSON-facing types use Int with validation in fromJSON
+✅ Both oneOf with mixed types and inline enums fully supported
 
-These are generator-level bugs in MotokoClientCodegen.java:
-- oneOf types are not properly converted to Motoko variants
-- Inline enum parameters don't generate corresponding model types or use variant types in function signatures
-- Mismatch between generated type signatures (Text) and generated code logic (variant pattern matching)
-- Generator doesn't inspect OpenAPI constraints (minimum, maximum) to deduce optimal Motoko types
+Implementation:
+- Override fromProperty() to detect minimum >= 0 and convert Int to Nat
+- Override fromModel() to detect oneOf schemas and generate variants
+- Update model.mustache template with oneOf section
+- Inline enums expanded into unit variants within oneOf types
 
-## Status
+Test cases verified:
+- VolumeParameter (oneOf with Nat + inline enum)
+- MixedOneOf (complex oneOf with enum, integer, and object types)
+- SetVolumeVolumeParameter (real-world Yamaha MusicCast API example)
+- All generated code typechecks successfully with moc
 
-- SetVolumeVolumeParameter: Manually fixed
-- PowerApi inline enums: Manually fixed
-- ZoneApi inline enums: Not yet fixed (typecheck currently fails on line 227)
-- Generator fixes: Required in Java codebase
+Files:
+- modules/openapi-generator/src/main/java/org/openapitools/codegen/languages/MotokoClientCodegen.java
+- modules/openapi-generator/src/main/resources/motoko/model.mustache
+- samples/client/enum-test/generated/Models/VolumeParameter.mo
+- samples/client/enum-test/generated/Models/MixedOneOf.mo
+- samples/client/yamaha-musiccast/motoko-test/generated/Models/SetVolumeVolumeParameter.mo
+
+---
+
+TODO: Enhanced Authentication Support
+
+Current state (MotokoClientCodegen.java lines 316-319):
+- Basic Bearer token authentication IS implemented in api.mustache
+- Config__ includes optional accessToken field
+- Authorization header added when token is provided
+
+Still TODO:
+- OAuth 2.0 flow integration (see notes on commit 3c1b286 for design)
+- API keys in query parameters
+- API keys in custom headers (beyond Authorization)
+- Multiple auth schemes per operation
+- Parse and implement OpenAPI security definitions
+- Support for security requirements at operation level
+
+Note: Bearer tokens work for APIs like Spotify that accept
+'Authorization: Bearer <token>' headers. More complex auth
+schemes need additional template and generator work.
+
+Related: OAuth 2.0 flow documentation on commit 3c1b286
