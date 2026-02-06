@@ -240,3 +240,64 @@ let #ok(jsonText) = JSON.toText(blob, [], ?options);
 Priority: HIGH (Critical for real-world API compatibility)
 Complexity: MEDIUM (Generator changes + thorough testing needed)
 Impact: HIGH (Enables proper enum support for all OpenAPI specs)
+
+---
+
+✅ RESOLVED: Janus Types Implementation Complete (Feb 5-6, 2026)
+
+The enum support challenge has been fully solved using the **Janus Types** approach,
+documented in ENUM_IMPLEMENTATION_PLAN.md. This solution elegantly sidesteps the
+serde modification requirement by using parallel type hierarchies entirely in Motoko.
+
+Key Implementation Commits:
+- 4683c0cb36d: Janus Types pattern - parallel user-facing/JSON-facing types
+- 5bd7a999aed: OneOf support + Nat type restriction for minimum >= 0
+- f4acd165b6e: Inline enum resolution with RESOLVE_INLINE_ENUMS
+- ca01b242d94: Manual toText() demonstration for oneOf URL parameters
+- be46aeafed2: Automated toText() generation for oneOf types
+- 436bcf98187: Yamaha MusicCast API client with real-world testing
+- e36a7b0bb23: Enhanced test demonstrating all oneOf variant types
+
+Implementation Details:
+
+1. **Parallel Type Hierarchies (Janus Types)**
+   - Each model has user-facing type (variants) + JSON sub-module (Text/Int)
+   - Import pattern: `import { type PostStatus; JSON = PostStatus } "./PostStatus"`
+   - Conversion functions: toJSON() and fromJSON() for bidirectional mapping
+   - No serde modifications needed - pure Motoko type conversions
+
+2. **Enum Types Supported**
+   - ✅ String enums with special chars: "published!", "in-progress", "archived-2023"
+   - ✅ Numeric enums: HTTP status codes with Int.abs() validation
+   - ✅ OneOf discriminated unions: mixed Nat/enum/object variants
+   - ✅ Inline enums: expanded into unit variants
+   - ✅ Nat type restriction: integers with minimum >= 0 generate as Nat
+
+3. **URL Parameter Serialization**
+   - Automated toText() generation for oneOf types
+   - Variant-specific conversions: Int.toText(), .toJSON(), debug_show()
+   - API template detects oneOf via x-is-oneof-type vendor extension
+
+4. **renameKeys Simplification**
+   - ❌ NOT used for enum value mapping (handled by toJSON/fromJSON)
+   - ✅ ONLY for field name escaping (hyphens, reserved words)
+   - Separation of concerns: models handle enums, serde handles fields
+
+Benefits:
+- Works with existing moc compiler and serde library (no changes)
+- Type-safe: all conversions explicit and compile-time checked
+- Composable: enums in records, optional enums, nested structures all work
+- Real-world tested: Yamaha MusicCast API, enum-test suite, all typecheck
+
+All success criteria achieved:
+✅ String/numeric enums with special characters work correctly
+✅ OneOf discriminated unions with mixed types supported
+✅ URL parameters and JSON bodies both handled properly
+✅ Type safety preserved (pattern matching, exhaustiveness)
+✅ Generated code typechecks with moc
+✅ Real-world API testing successful (Yamaha MusicCast)
+
+The renameKeys-based approach initially explored proved insufficient because
+it cannot convert between value types (Text vs variant). The Janus Types
+solution achieves the same goal through pure Motoko type conversions,
+requiring no serde or compiler modifications.
