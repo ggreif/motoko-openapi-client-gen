@@ -53,3 +53,205 @@ Optimized pattern:
 
 Priority: Low (optimization, not a bug)
 Impact: All generated models with optional enum/model fields
+
+---
+
+TODO: Generate bounded integer types from minimum/maximum constraints
+
+Currently, the Motoko generator maps OpenAPI integer types to unbounded types:
+- `type: integer, minimum: 0` → `Nat` (unbounded natural number)
+- `type: integer` → `Int` (unbounded integer)
+
+ENHANCEMENT: Use minimum/maximum constraints to generate bounded integer types
+when the range fits within Motoko's bounded types.
+
+## Motoko Bounded Integer Types
+
+**Unsigned (Natural Numbers):**
+- `Nat8`: 0 to 255 (2^8 - 1)
+- `Nat16`: 0 to 65,535 (2^16 - 1)
+- `Nat32`: 0 to 4,294,967,295 (2^32 - 1)
+- `Nat64`: 0 to 18,446,744,073,709,551,615 (2^64 - 1)
+
+**Signed (Integers):**
+- `Int8`: -128 to 127 (-2^7 to 2^7 - 1)
+- `Int16`: -32,768 to 32,767 (-2^15 to 2^15 - 1)
+- `Int32`: -2,147,483,648 to 2,147,483,647 (-2^31 to 2^31 - 1)
+- `Int64`: -9,223,372,036,854,775,808 to 9,223,372,036,854,775,807 (-2^63 to 2^63 - 1)
+
+## OpenAPI Mapping Examples
+
+```yaml
+# HTTP status codes (200-599)
+status_code:
+  type: integer
+  minimum: 100
+  maximum: 599
+# Generated: Nat16 (fits in 0-65535)
+
+# Age field (0-150)
+age:
+  type: integer
+  minimum: 0
+  maximum: 150
+# Generated: Nat8 (fits in 0-255)
+
+# Port number (0-65535)
+port:
+  type: integer
+  minimum: 0
+  maximum: 65535
+# Generated: Nat16 (exact fit)
+
+# Temperature in Celsius (-50 to 50)
+temperature:
+  type: integer
+  minimum: -50
+  maximum: 50
+# Generated: Int8 (fits in -128 to 127)
+
+# Year (1900-2100)
+year:
+  type: integer
+  minimum: 1900
+  maximum: 2100
+# Generated: Nat16 (fits in 0-65535)
+
+# Timestamp (seconds since epoch)
+timestamp:
+  type: integer
+  minimum: 0
+  maximum: 2147483647
+# Generated: Nat32 (fits in 0 to 2^32-1)
+```
+
+## Benefits
+
+1. **Type Safety**: Prevents out-of-range values at compile time
+2. **Memory Efficiency**: Smaller types use less memory
+3. **API Accuracy**: Types match OpenAPI constraints precisely
+4. **Better Validation**: Type system enforces constraints automatically
+5. **Documentation**: Type signature documents valid range
+
+## Implementation Strategy
+
+### Detection Logic (in MotokoClientCodegen.java)
+
+```java
+private String getBoundedIntegerType(CodegenProperty property) {
+    BigDecimal min = property.minimum;
+    BigDecimal max = property.maximum;
+
+    // No bounds specified - use unbounded types
+    if (min == null && max == null) {
+        return property.isUnsignedInteger ? "Nat" : "Int";
+    }
+
+    // Only minimum >= 0 - already handled (generates Nat)
+    if (min != null && min.compareTo(BigDecimal.ZERO) >= 0 && max == null) {
+        return "Nat";
+    }
+
+    // Only maximum, no minimum - use unbounded
+    if (min == null) {
+        return property.isUnsignedInteger ? "Nat" : "Int";
+    }
+
+    // Both min and max specified - check if fits in bounded type
+    long minLong = min.longValue();
+    long maxLong = max.longValue();
+
+    // Check Nat types (minimum >= 0)
+    if (minLong >= 0) {
+        if (maxLong <= 255) return "Nat8";
+        if (maxLong <= 65535) return "Nat16";
+        if (maxLong <= 4294967295L) return "Nat32";
+        if (maxLong <= Long.MAX_VALUE) return "Nat64";
+        return "Nat"; // Too large for Nat64
+    }
+
+    // Check Int types (can be negative)
+    if (minLong >= -128 && maxLong <= 127) return "Int8";
+    if (minLong >= -32768 && maxLong <= 32767) return "Int16";
+    if (minLong >= -2147483648L && maxLong <= 2147483647L) return "Int32";
+    if (minLong >= Long.MIN_VALUE && maxLong <= Long.MAX_VALUE) return "Int64";
+    return "Int"; // Too large for Int64
+}
+```
+
+### JSON Conversion Handling
+
+For bounded types, JSON still sends unbounded Int:
+
+```motoko
+// User-facing: bounded type for type safety
+public type StatusCode = Nat16;
+
+public module JSON {
+    // JSON-facing: unbounded Int (JSON has no bounded types)
+    public type JSON = Int;
+
+    public func toJSON(value : StatusCode) : JSON = value;
+
+    public func fromJSON(json : JSON) : ?StatusCode =
+        if (json < 0 or json > 65535) null
+        else ?Nat16.fromNat(Int.abs(json));
+}
+```
+
+### Range Validation
+
+Generate runtime validation in fromJSON:
+
+```motoko
+public func fromJSON(json : JSON) : ?StatusCode = {
+    // Check bounds
+    if (json < 100 or json > 599) return null;
+
+    // Convert with range check
+    let nat = Int.abs(json);
+    if (nat > 65535) return null; // Nat16 max
+    ?Nat16.fromNat(nat)
+}
+```
+
+## Edge Cases
+
+1. **Exclusive bounds**: OpenAPI `exclusiveMinimum`/`exclusiveMaximum`
+   - Adjust range: `exclusiveMinimum: 0` → effective minimum is 1
+
+2. **Partial bounds**: Only min or only max specified
+   - Use unbounded type unless minimum >= 0 (then use Nat)
+
+3. **Very large bounds**: Exceed Nat64/Int64 ranges
+   - Fall back to unbounded Nat/Int
+
+4. **Multiple of**: OpenAPI `multipleOf` constraint
+   - Type system can't enforce this, add runtime validation
+
+5. **Enum with bounds**: Both enum and min/max specified
+   - Enum takes precedence (generates variant type)
+
+## Files to Modify
+
+1. **MotokoClientCodegen.java**:
+   - Add `getBoundedIntegerType()` method
+   - Update `fromProperty()` to call it
+   - Set vendor extension for bound checking in fromJSON
+
+2. **model.mustache**:
+   - Add range validation in fromJSON for bounded types
+   - Add conversion functions (Nat16.fromNat, etc.)
+
+3. **Test specs**:
+   - Add OpenAPI specs with various constraint combinations
+   - Verify correct type generation and validation
+
+## Related
+
+- Current Nat/Int handling: commit 5bd7a999aed
+- Existing minimum >= 0 detection for Nat
+- This extends that logic to bounded types
+
+Priority: Medium (nice optimization, not critical)
+Impact: Better type safety and memory efficiency for constrained integers
