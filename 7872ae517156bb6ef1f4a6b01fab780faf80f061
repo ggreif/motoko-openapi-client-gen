@@ -255,3 +255,39 @@ public func fromJSON(json : JSON) : ?StatusCode = {
 
 Priority: Medium (nice optimization, not critical)
 Impact: Better type safety and memory efficiency for constrained integers
+
+---
+
+✅ RESOLVED: Optional field transformations optimized with do ? expressions
+
+Implemented in commit 21883ad14ad (Feb 6, 2026).
+
+Replaced verbose switch expressions with idiomatic do ? blocks for optional
+enum and model field conversions:
+
+Old pattern:
+  status = switch (value.status) { case (?v) ?Enum.toJSON(v); case null null }
+
+New pattern:
+  status = do ? { Enum.toJSON(value.status!) }
+
+Benefits achieved:
+- More concise and readable code
+- Idiomatic Motoko (Option monad pattern)
+- Reduced boilerplate in generated models
+- Same runtime behavior (automatic null propagation)
+
+Files modified:
+- model.mustache template: 6 switch patterns replaced with do ? blocks
+- All generated models now use the optimized pattern
+- All models typecheck successfully with moc
+
+Pattern usage:
+- toJSON: do ? { EnumType.toJSON(value.field!) }
+- fromJSON: do ? { EnumType.fromJSON(json.field!)! }
+- Unsigned fields: do ? { let v = json.field!; if (v < 0) return null else Int.abs(v) }
+
+Test results:
+- Petstore models: 9/9 passed ✓
+- Enum-test models: All passed ✓
+- Real-world verification complete
