@@ -1,0 +1,18 @@
+TODO: Remove workaround for moc deficiency with destructuring actor imports
+
+Current issue: Motoko compiler doesn't support destructuring imports from actor types.
+
+Current workaround in generated code:
+  import Mgnt = "ic:aaaaa-aa";
+  type CanisterHttpRequestArgument = Mgnt.http_request_args;
+  type CanisterHttpResponsePayload = Mgnt.http_request_result;
+  // etc.
+
+Desired (once moc is fixed):
+  import { type CanisterHttpRequestArgument; type CanisterHttpResponsePayload; type HttpMethod; type HttpHeader; http_request } "ic:aaaaa-aa";
+
+This will be fixed in the Motoko compiler repository. Once fixed, update the generator to use destructuring imports for actor types.
+
+Related files:
+- modules/openapi-generator/src/main/resources/motoko/api.mustache
+- samples/client/yamaha-musiccast/motoko-test/generated/Apis/*.mo
