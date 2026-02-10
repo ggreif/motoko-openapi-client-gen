@@ -59,19 +59,25 @@ Prim.zeroText(text : Text) : ()
 
 **4. GC Interaction (Critical!):**
 
-The incremental GC may **move the blob** between allocation and cleanup:
+The incremental GC may **move the blob at any time** - even BEFORE Candid encoding:
 
 ```motoko
-let token = await decrypt();     // Allocate blob at address A
+let token = await decrypt();                    // Allocate blob at address A
 // ... GC runs, moves blob to address B (leaves forwarding pointer at A)
+// ... Candid encoding reads from B (follows forwarding pointer)
 (with cleaning = Prim.zeroBlob(token); ...) outcall(token);
-// ⚠️ Must zero BOTH addresses!
+// ⚠️ Must zero address B (actual data), optionally A too!
 ```
 
+**Why this matters:**
+- Candid encoder automatically follows forwarding pointers (gets data from B)
+- Cleanup primitive must ALSO follow forwarding pointers (zero B, not just A)
+- If cleanup only zeros A, the actual cleartext at B remains in memory!
+
 **Prim.zeroBlob must:**
-1. Check if blob has forwarding pointer
-2. If moved: zero the new location (actual data)
-3. Optionally: zero old location (defense in depth)
+1. Check if blob has forwarding pointer at current address
+2. If moved: zero the **new location** (address B - the actual data)
+3. Optionally: zero old location (address A - defense in depth)
 
 ### Example Usage
 
