@@ -1,6 +1,0 @@
-.openapi-generator-ignore
-Apis/DefaultApi.mo
-Models/GetHeaders200Response.mo
-Models/TestBearer200Response.mo
-README.md
-mops.toml
