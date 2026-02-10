@@ -934,10 +934,44 @@ public class MotokoClientCodegen extends DefaultCodegen implements CodegenConfig
     public OperationsMap postProcessOperationsWithModels(OperationsMap objs, List<ModelMap> allModels) {
         OperationsMap result = super.postProcessOperationsWithModels(objs, allModels);
 
-        // TODO: Authentication is missing - need to add support for:
-        //   - OAuth 2.0 tokens in Authorization header
-        //   - API keys in headers/query parameters
-        //   - Other auth schemes defined in OpenAPI security definitions
+        // Parse security schemes from OpenAPI spec to enable authentication support
+        Map<String, io.swagger.v3.oas.models.security.SecurityScheme> securitySchemes = new HashMap<>();
+        if (openAPI != null && openAPI.getComponents() != null && openAPI.getComponents().getSecuritySchemes() != null) {
+            securitySchemes = openAPI.getComponents().getSecuritySchemes();
+        }
+
+        // Determine which authentication types are used
+        boolean usesBearerAuth = false;
+        boolean usesApiKeyAuth = false;
+        boolean usesBasicAuth = false;
+        String apiKeyHeaderName = null;
+        String apiKeyQueryName = null;
+
+        for (Map.Entry<String, io.swagger.v3.oas.models.security.SecurityScheme> entry : securitySchemes.entrySet()) {
+            io.swagger.v3.oas.models.security.SecurityScheme scheme = entry.getValue();
+
+            if (io.swagger.v3.oas.models.security.SecurityScheme.Type.HTTP.equals(scheme.getType())) {
+                if ("bearer".equalsIgnoreCase(scheme.getScheme())) {
+                    usesBearerAuth = true;
+                } else if ("basic".equalsIgnoreCase(scheme.getScheme())) {
+                    usesBasicAuth = true;
+                }
+            } else if (io.swagger.v3.oas.models.security.SecurityScheme.Type.APIKEY.equals(scheme.getType())) {
+                usesApiKeyAuth = true;
+                if (io.swagger.v3.oas.models.security.SecurityScheme.In.HEADER.equals(scheme.getIn())) {
+                    apiKeyHeaderName = scheme.getName();
+                } else if (io.swagger.v3.oas.models.security.SecurityScheme.In.QUERY.equals(scheme.getIn())) {
+                    apiKeyQueryName = scheme.getName();
+                }
+            }
+        }
+
+        // Add authentication context to operations for use in templates
+        result.put("usesBearerAuth", usesBearerAuth);
+        result.put("usesApiKeyAuth", usesApiKeyAuth);
+        result.put("usesBasicAuth", usesBasicAuth);
+        result.put("apiKeyHeaderName", apiKeyHeaderName);
+        result.put("apiKeyQueryName", apiKeyQueryName);
 
         // Response code processing is implemented in api.mustache template
         // - HTTP status codes are checked before parsing (2xx vs 4xx/5xx)

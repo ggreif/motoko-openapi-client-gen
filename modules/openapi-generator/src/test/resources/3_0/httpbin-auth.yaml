@@ -1,0 +1,56 @@
+openapi: 3.0.0
+info:
+  title: HTTPBin Auth Test API
+  version: 1.0.0
+  description: Test API for bearer token authentication using httpbin.org endpoints
+servers:
+  - url: https://httpbin.org
+paths:
+  /bearer:
+    get:
+      operationId: testBearer
+      summary: Test bearer token authentication
+      description: Validates that the bearer token is correctly sent in the Authorization header
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Authenticated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  authenticated:
+                    type: boolean
+                    description: Whether the request was authenticated
+                  token:
+                    type: string
+                    description: The bearer token that was received
+        '401':
+          description: Unauthorized - no token or invalid token
+  /headers:
+    get:
+      operationId: getHeaders
+      summary: Get all request headers
+      description: Returns all headers sent in the request, useful for verifying Authorization header format
+      responses:
+        '200':
+          description: Headers returned successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  headers:
+                    type: object
+                    description: Map of all request headers
+                    additionalProperties:
+                      type: string
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Bearer token authentication (OAuth 2.0 style)
