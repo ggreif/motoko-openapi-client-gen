@@ -1,0 +1,14 @@
+{
+  "canisters": {
+    "httpbin_auth_test": {
+      "type": "motoko",
+      "main": "test.mo"
+    }
+  },
+  "defaults": {
+    "build": {
+      "packtool": "mops sources"
+    }
+  },
+  "version": 1
+}
