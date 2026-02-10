@@ -94,6 +94,96 @@ This configuration uses:
 - **Array types**: Uses Motoko array syntax `[T]`
 - **Model imports**: Uses destructuring `import { type ModelName } "./ModelName"`
 - **DFX mode**: Optional `useDfx` flag for IC imports
+- **Authentication**: Bearer token support (Phase 1 complete) ✅
+
+## Authentication Support
+
+### Bearer Token Authentication (OAuth 2.0) ✅
+
+The generator now supports bearer token authentication for APIs that use OAuth 2.0 or similar bearer token schemes.
+
+**OpenAPI Spec Example:**
+```yaml
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT  # optional
+security:
+  - bearerAuth: []
+```
+
+**Generated Config Type:**
+```motoko
+public type Config__ = {
+    baseUrl : Text;
+    accessToken : ?Text;      // Bearer token goes here
+    max_response_bytes : ?Nat64;
+    transform : ?TransformContext__;
+    is_replicated : ?Bool;
+    cycles : Nat;
+};
+```
+
+**Usage in Your Code:**
+```motoko
+import { getUser; listPosts } "./generated/Apis/DefaultApi";
+
+// Configure with bearer token
+let config = {
+    baseUrl = "https://api.example.com";
+    accessToken = ?"your-bearer-token-here";
+    max_response_bytes = null;
+    transform = null;
+    is_replicated = null;
+    cycles = 30_000_000_000;
+};
+
+// All API calls will include: Authorization: Bearer your-bearer-token-here
+let user = await* getUser(config);
+let posts = await* listPosts(config);
+```
+
+**What It Does:**
+- Detects `type: http` with `scheme: bearer` in OpenAPI security schemes
+- Automatically adds `Authorization: Bearer {token}` header to all requests
+- Token is optional (`?Text`) - requests without token won't include the header
+
+**Supported APIs:**
+- ✅ Spotify API (OAuth 2.0)
+- ✅ GitHub API (Personal Access Tokens)
+- ✅ OpenAI API (Bearer tokens)
+- ✅ Any API using OAuth 2.0 bearer tokens
+
+**Example: Generate Spotify API Client**
+```bash
+# 1. Get Spotify OpenAPI spec (or create one)
+# 2. Add bearerAuth security scheme
+# 3. Generate client
+bin/generate-samples.sh bin/configs/motoko-spotify.yaml
+
+# 4. Use in your canister
+import { searchTracks } "./generated/Apis/DefaultApi";
+
+let config = {
+    baseUrl = "https://api.spotify.com/v1";
+    accessToken = ?spotifyAccessToken;  // From OAuth flow
+    cycles = 30_000_000_000;
+    // ...
+};
+
+let results = await* searchTracks(config, "query");
+```
+
+**Testing:**
+See `samples/client/httpbin-auth/motoko-test/` for a complete working example with tests against httpbin.org.
+
+### Coming Soon
+
+- **API Key Authentication** (Phase 2) - Header and query parameter support
+- **Basic Authentication** (Phase 3) - Username/password with Base64
+- **Secure Credential Storage** (Phase 5) - IC vetKeys for encrypted token storage
 
 ## Common Issues
 
