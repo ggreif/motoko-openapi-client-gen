@@ -1,0 +1,41 @@
+error: no note found for object 628b3d3897f51b27c88086f049e3c66a97bac3fe.
+## [SECURITY] vetKeys Memory Persistence - Compiler Enhancement Needed
+
+**Context:** Phase 5 authentication (secure credential storage with vetKeys)
+
+**Problem:** Decrypted credentials persist as plaintext in Wasm heap memory across await points, vulnerable to controller state dumps and canister inspection during suspension.
+
+**Root Cause:**
+- Motoko lacks explicit memory zeroing primitives
+- State serialization includes heap memory
+- No cleanup guarantees after credential use
+
+**Proposed Solution:**
+1. **Primitive:** `Prim.zeroBlob(blob : Blob)` for explicit memory zeroing
+2. **Syntax:** `(with cleaning = cleanup_expr) await_expr`
+3. **Timing:** Execute cleanup AFTER Candid encoding, BEFORE await suspension
+
+**Critical Insight:** Cleanup must occur after message construction but before state serialization to prevent plaintext persistence.
+
+**Security Guarantees (with compiler support):**
+- ✅ Token zeroed before state serialization
+- ✅ Controller dumps see only zeros
+- ✅ No persistence across upgrade
+- ⚠️ Still vulnerable during Candid encoding (unavoidable)
+
+**Workaround (without compiler support):**
+- Per-call decryption pattern (limits exposure window)
+- `withCredential` wrapper (enforces best practices)
+- Document limitation prominently
+
+**Action Items:**
+1. File Motoko feature request for `Prim.zeroBlob` + cleanup thunks
+2. Design Phase 5 API ready for future primitive
+3. Generate conditional code: `#if has_prim "zeroBlob"`
+4. Document security limitation in generated code
+
+**Reference:** Full analysis in `/tmp/vetkeys-security-reminder.md`
+
+**Related:** Phase 5 planning (git notes --ref=planning), authentication implementation
+
+**Priority:** HIGH - blocks production-grade credential security in Phase 5
