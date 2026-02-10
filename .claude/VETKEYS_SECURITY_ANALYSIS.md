@@ -44,24 +44,43 @@ Prim.zeroText(text : Text) : ()
 **2. Cleanup Thunk Syntax:**
 ```motoko
 // Execute cleanup AFTER Candid encoding, BEFORE await
-(with cleaning = cleanup_expr) awaited_expr
+// Attached to the outcall along with cycles
+(with cleaning = cleanup_expr; cycles = cycles_expr) outcall_expr
 ```
 
 **3. Critical Timing Guarantee:**
 ```
-1. Evaluate: api.call(token) → construct args, Candid encode
-2. Execute: cleanup_expr → zero token memory  
-3. Submit: message to outqueue
-4. Await: serialize state (token already zeroed) ✅
+1. Evaluate: outcall(token) → construct args, Candid encode
+2. Execute: cleanup_expr → zero token memory (GC-aware!)
+3. Attach: cycles to message
+4. Submit: message to outqueue
+5. Await: serialize state (token already zeroed) ✅
 ```
+
+**4. GC Interaction (Critical!):**
+
+The incremental GC may **move the blob** between allocation and cleanup:
+
+```motoko
+let token = await decrypt();     // Allocate blob at address A
+// ... GC runs, moves blob to address B (leaves forwarding pointer at A)
+(with cleaning = Prim.zeroBlob(token); ...) outcall(token);
+// ⚠️ Must zero BOTH addresses!
+```
+
+**Prim.zeroBlob must:**
+1. Check if blob has forwarding pointer
+2. If moved: zero the new location (actual data)
+3. Optionally: zero old location (defense in depth)
 
 ### Example Usage
 
+**User writes:**
 ```motoko
 public func searchSpotify(query: Text) : async Result {
     // Decrypt credential
     let token = await vetKeys.decrypt(caller, "spotify_token");
-    
+
     // Build config (token still needed)
     let config = {
         baseUrl = "https://api.spotify.com/v1";
@@ -69,16 +88,31 @@ public func searchSpotify(query: Text) : async Result {
         cycles = 30_000_000_000;
         // ...
     };
-    
-    // Call with automatic cleanup
-    (with cleaning = Prim.zeroBlob(token))
-        await* spotifyApi.search(config, query);
-    
-    // ✅ token zeroed before await suspension
+
+    // Call API using generated client
+    await* spotifyApi.search(config, query);
+
+    // ✅ token zeroed before await suspension (follows forwarding pointers)
     // ✅ controller dumps see only zeros
     // ✅ never persists in serialized state
 };
 ```
+
+**Generated client code:**
+```motoko
+// In generated DefaultApi.mo
+public func search(config : Config__, query : Text) : async* Result {
+    let accessToken = config.accessToken;
+
+    // ... build headers, request body, etc ...
+
+    // Attach cleanup + cycles to the http_request outcall
+    await (with cleaning = Prim.zeroBlob(accessToken); cycles = config.cycles)
+        http_request(httpRequest);
+};
+```
+
+The key: **cleanup happens inside the generated client**, after Candid encoding but before the await point.
 
 ## Security Guarantees
 
