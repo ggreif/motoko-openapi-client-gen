@@ -9,7 +9,7 @@ persistent actor {
 
     transient let apiConfig = {
         baseUrl = "http://192.168.178.42/YamahaExtendedControl/v1";
-        accessToken = null;
+        auth = null;
         max_response_bytes = null;
         transform = null;
         is_replicated = null;

@@ -11,7 +11,7 @@ import Error "mo:core/Error";
 import { JSON } "mo:serde";
 // FIXME: destructuring on `actor` types is not implemented yet for shared functions
 //        type error [M0114], object pattern cannot consume actor type
-import { type http_request_args; type http_request_result } "ic:aaaaa-aa";
+import { type http_request_args; type http_request_result; type http_header } "ic:aaaaa-aa";
 import Mgnt__ = "ic:aaaaa-aa";
 import { type RecallTunerPresetBandParameter; JSON = RecallTunerPresetBandParameter } "../Models/RecallTunerPresetBandParameter";
 import { type SetTunerFreqTuningParameter; JSON = SetTunerFreqTuningParameter } "../Models/SetTunerFreqTuningParameter";
