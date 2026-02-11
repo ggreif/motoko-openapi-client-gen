@@ -179,11 +179,82 @@ let results = await* searchTracks(config, "query");
 **Testing:**
 See `samples/client/httpbin-auth/motoko-test/` for a complete working example with tests against httpbin.org.
 
+### API Key Authentication (Header & Query Parameter) ✅
+
+The generator supports API keys in both HTTP headers and query parameters.
+
+**OpenAPI Spec Example:**
+```yaml
+components:
+  securitySchemes:
+    apiKeyHeader:
+      type: apiKey
+      in: header
+      name: X-API-Key
+    apiKeyQuery:
+      type: apiKey
+      in: query
+      name: api_key
+```
+
+**Generated Config Type:**
+```motoko
+public type Config__ = {
+    baseUrl : Text;
+    accessToken : ?Text;
+    apiKey : ?Text;           // API key goes here
+    max_response_bytes : ?Nat64;
+    transform : ?TransformContext__;
+    is_replicated : ?Bool;
+    cycles : Nat;
+};
+```
+
+**What It Does:**
+- For header API keys: Adds custom header (e.g., `X-API-Key: your-key`)
+- For query API keys: Appends to URL (e.g., `?api_key=your-key`)
+- Automatically detects placement from OpenAPI spec
+
+### Basic Authentication (HTTP Basic Auth) ✅
+
+The generator supports HTTP Basic Authentication with username and password.
+
+**OpenAPI Spec Example:**
+```yaml
+components:
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+```
+
+**Generated Config Type:**
+```motoko
+public type Config__ = {
+    baseUrl : Text;
+    accessToken : ?Text;
+    apiKey : ?Text;
+    basicAuthUser : ?Text;      // Username for Basic Auth
+    basicAuthPassword : ?Text;  // Password for Basic Auth
+    max_response_bytes : ?Nat64;
+    transform : ?TransformContext__;
+    is_replicated : ?Bool;
+    cycles : Nat;
+};
+```
+
+**What It Does:**
+- Encodes `username:password` as Base64
+- Adds `Authorization: Basic {base64-encoded-credentials}` header
+- Includes custom Base64 encoder in generated code
+
+**Testing:**
+See `samples/client/httpbin-auth/motoko-test/` for complete working examples with all three authentication methods tested against httpbin.org.
+
 ### Coming Soon
 
-- **API Key Authentication** (Phase 2) - Header and query parameter support
-- **Basic Authentication** (Phase 3) - Username/password with Base64
-- **Secure Credential Storage** (Phase 5) - IC vetKeys for encrypted token storage
+- **Multiple Auth Schemes** (Phase 4) - Handle APIs with multiple authentication options
+- **Secure Credential Storage** (Phase 5) - IC vetKeys for encrypted on-chain token storage (blocked on compiler enhancement)
 
 ## Common Issues
 
