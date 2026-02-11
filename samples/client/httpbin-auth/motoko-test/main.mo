@@ -19,7 +19,7 @@ persistent actor HttpBinAuthTest {
 
         let config : Config = {
             baseUrl = "https://httpbin.org";
-            auth = #bearer("test-token-12345");
+            auth = ?#bearer("test-token-12345");
             max_response_bytes = null;
             transform = null;
             is_replicated = null;
@@ -59,7 +59,7 @@ persistent actor HttpBinAuthTest {
 
         let config : Config = {
             baseUrl = "https://httpbin.org";
-            auth = #noAuth;
+            auth = null;
             max_response_bytes = null;
             transform = null;
             is_replicated = null;
@@ -88,7 +88,7 @@ persistent actor HttpBinAuthTest {
 
         let config : Config = {
             baseUrl = "https://httpbin.org";
-            auth = #bearer("my-secret-token");
+            auth = ?#bearer("my-secret-token");
             max_response_bytes = null;
             transform = null;
             is_replicated = null;
@@ -112,7 +112,7 @@ persistent actor HttpBinAuthTest {
 
         let config : Config = {
             baseUrl = "https://httpbin.org";
-            auth = #apiKey("test-api-key-12345");
+            auth = ?#apiKey("test-api-key-12345");
             max_response_bytes = null;
             transform = null;
             is_replicated = null;
@@ -137,7 +137,7 @@ persistent actor HttpBinAuthTest {
 
         let config : Config = {
             baseUrl = "https://httpbin.org";
-            auth = #apiKey("test-query-key-67890");
+            auth = ?#apiKey("test-query-key-67890");
             max_response_bytes = null;
             transform = null;
             is_replicated = null;
@@ -176,7 +176,7 @@ persistent actor HttpBinAuthTest {
 
         let config : Config = {
             baseUrl = "https://httpbin.org";
-            auth = #basicAuth({ user = "testuser"; password = "testpass" });
+            auth = ?#basicAuth({ user = "testuser"; password = "testpass" });
             max_response_bytes = null;
             transform = null;
             is_replicated = null;

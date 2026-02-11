@@ -107,7 +107,6 @@ module {
 
 {{#operations}}
     public type Auth__ = {
-        #noAuth;
         #bearer : Text;
         #apiKey : Text;
         #basicAuth : { user : Text; password : Text };
@@ -115,7 +114,7 @@ module {
 
     public type Config__ = {
         baseUrl : Text;
-        auth : Auth__;
+        auth : ?Auth__;
         max_response_bytes : ?Nat64;
         transform : ?{
             function : shared query ({ response : http_request_result; context : Blob }) -> async http_request_result;
@@ -141,7 +140,7 @@ module {
         // Add API key as query parameter if using apiKey auth
         let url = switch (config.auth) {
             {{#apiKeyQueryName}}
-            case (#apiKey(key)) {
+            case (?#apiKey(key)) {
                 let separator = if (Text.contains(baseUrl__, #text "?")) "&" else "?";
                 baseUrl__ # separator # "{{apiKeyQueryName}}=" # key
             };
@@ -156,10 +155,10 @@ module {
 
         // Build authentication headers based on auth type
         let authHeaders = switch (config.auth) {
-            case (#bearer(token)) {
+            case (?#bearer(token)) {
                 [{ name = "Authorization"; value = "Bearer " # token }]
             };
-            case (#apiKey(key)) {
+            case (?#apiKey(key)) {
                 {{#apiKeyHeaderName}}
                 // API key goes in header
                 [{ name = "{{apiKeyHeaderName}}"; value = key }]
@@ -169,13 +168,13 @@ module {
                 []
                 {{/apiKeyHeaderName}}
             };
-            case (#basicAuth({user; password})) {
+            case (?#basicAuth({user; password})) {
                 let credentials = user # ":" # password;
                 let credentialsBytes = Blob.toArray(Text.encodeUtf8(credentials));
                 let encoded = base64Encode(credentialsBytes);
                 [{ name = "Authorization"; value = "Basic " # encoded }]
             };
-            case (#noAuth) [];
+            case null [];
         };
 
         let headers = Array.flatten<http_header>([

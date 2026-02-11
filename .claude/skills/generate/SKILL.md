@@ -117,7 +117,6 @@ security:
 **Generated Types:**
 ```motoko
 public type Auth__ = {
-    #noAuth;
     #bearer : Text;
     #apiKey : Text;
     #basicAuth : { user : Text; password : Text };
@@ -125,7 +124,7 @@ public type Auth__ = {
 
 public type Config__ = {
     baseUrl : Text;
-    auth : Auth__;
+    auth : ?Auth__;
     max_response_bytes : ?Nat64;
     transform : ?TransformContext__;
     is_replicated : ?Bool;
@@ -140,7 +139,7 @@ import { getUser; listPosts } "./generated/Apis/DefaultApi";
 // Configure with bearer token
 let config = {
     baseUrl = "https://api.example.com";
-    auth = #bearer("your-bearer-token-here");
+    auth = ?#bearer("your-bearer-token-here");
     max_response_bytes = null;
     transform = null;
     is_replicated = null;
@@ -175,7 +174,7 @@ import { searchTracks } "./generated/Apis/DefaultApi";
 
 let config = {
     baseUrl = "https://api.spotify.com/v1";
-    auth = #bearer(spotifyAccessToken);  // From OAuth flow
+    auth = ?#bearer(spotifyAccessToken);  // From OAuth flow
     cycles = 30_000_000_000;
     // ...
 };
@@ -209,7 +208,7 @@ components:
 // API key in header (X-API-Key)
 let config = {
     baseUrl = "https://api.example.com";
-    auth = #apiKey("your-api-key-here");
+    auth = ?#apiKey("your-api-key-here");
     cycles = 30_000_000_000;
     // ...
 };
@@ -217,7 +216,7 @@ let config = {
 // Same variant for query parameter - placement determined by OpenAPI spec
 let config = {
     baseUrl = "https://api.example.com";
-    auth = #apiKey("your-api-key-here");  // Will append ?api_key=...
+    auth = ?#apiKey("your-api-key-here");  // Will append ?api_key=...
     cycles = 30_000_000_000;
     // ...
 };
@@ -246,7 +245,7 @@ components:
 ```motoko
 let config = {
     baseUrl = "https://api.example.com";
-    auth = #basicAuth({ user = "username"; password = "password" });
+    auth = ?#basicAuth({ user = "username"; password = "password" });
     cycles = 30_000_000_000;
     // ...
 };
@@ -263,7 +262,7 @@ For endpoints that don't require authentication:
 ```motoko
 let config = {
     baseUrl = "https://api.example.com";
-    auth = #noAuth;
+    auth = null;
     cycles = 30_000_000_000;
     // ...
 };
