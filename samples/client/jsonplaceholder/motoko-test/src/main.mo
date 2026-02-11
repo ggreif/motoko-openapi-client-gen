@@ -19,10 +19,10 @@ persistent actor {
   transient let baseUrl = "https://jsonplaceholder.typicode.com";
   transient let httpbinUrl = "https://httpbin.org";
 
-  // Instantiate the API client with base URL and no access token
+  // Instantiate the API client with base URL and no authentication
   transient let api = DefaultApi({
     baseUrl;
-    accessToken = null;
+    auth = null;
     max_response_bytes = null;
     transform = null;
     is_replicated = null;
@@ -32,7 +32,7 @@ persistent actor {
   // Instantiate a separate API client for httpbin.org endpoints
   transient let httpbinApi = DefaultApi({
     baseUrl = httpbinUrl;
-    accessToken = null;
+    auth = null;
     max_response_bytes = null;
     transform = null;
     is_replicated = null;
@@ -284,7 +284,7 @@ persistent actor {
     // Create API client with transform callback that converts httpbin /anything/geojson to GeoJSON
     let geoJsonApi = DefaultApi({
       baseUrl = httpbinUrl;
-      accessToken = null;
+      auth = null;
       max_response_bytes = null;
       transform = ?{
         function = transformToGeoJson;
@@ -330,7 +330,7 @@ persistent actor {
     // Create API client with transform callback that returns object with enum field
     let enumApi = DefaultApi({
       baseUrl = httpbinUrl;
-      accessToken = null;
+      auth = null;
       max_response_bytes = null;
       transform = ?{
         function = transformToEnumStatus;
@@ -385,7 +385,7 @@ persistent actor {
 
     let bulkApi = DefaultApi({
       baseUrl = httpbinUrl;  // Use httpbin.org which has /anything that accepts POST
-      accessToken = null;
+      auth = null;
       max_response_bytes = null;
       transform = ?{
         function = transformBulkCreate;
