@@ -1,4 +1,4 @@
-import { testBearer; getHeaders } "./generated/Apis/DefaultApi";
+import { testBearer; getHeaders; testApiKeyHeader; testApiKeyQuery } "./generated/Apis/DefaultApi";
 import Debug "mo:core/Debug";
 import Text "mo:core/Text";
 import Error "mo:core/Error";
@@ -7,6 +7,7 @@ persistent actor HttpBinAuthTest {
     type Config = {
         baseUrl : Text;
         accessToken : ?Text;
+        apiKey : ?Text;
         max_response_bytes : ?Nat64;
         transform : ?{
             function : shared query ({ response : http_request_result; context : Blob }) -> async http_request_result;
@@ -29,6 +30,7 @@ persistent actor HttpBinAuthTest {
         let config : Config = {
             baseUrl = "https://httpbin.org";
             accessToken = ?"test-token-12345";
+            apiKey = null;
             max_response_bytes = null;
             transform = null;
             is_replicated = null;
@@ -69,6 +71,7 @@ persistent actor HttpBinAuthTest {
         let config : Config = {
             baseUrl = "https://httpbin.org";
             accessToken = null;
+            apiKey = null;
             max_response_bytes = null;
             transform = null;
             is_replicated = null;
@@ -98,6 +101,7 @@ persistent actor HttpBinAuthTest {
         let config : Config = {
             baseUrl = "https://httpbin.org";
             accessToken = ?"my-secret-token";
+            apiKey = null;
             max_response_bytes = null;
             transform = null;
             is_replicated = null;
@@ -115,9 +119,75 @@ persistent actor HttpBinAuthTest {
         }
     };
 
+    // Test 4: API key in header
+    public func test4_ApiKeyHeader() : async Text {
+        Debug.print("Test 4: API key in header (X-API-Key)");
+
+        let config : Config = {
+            baseUrl = "https://httpbin.org";
+            accessToken = null;
+            apiKey = ?"test-api-key-12345";
+            max_response_bytes = null;
+            transform = null;
+            is_replicated = null;
+            cycles = 30_000_000_000;
+        };
+
+        try {
+            let _response = await* testApiKeyHeader(config, "test-api-key-12345");
+            // If we got here without error, the API key was sent successfully
+            Debug.print("✅ API key in header sent successfully");
+            "✅ PASS: API key sent in X-API-Key header"
+        } catch (e) {
+            let msg = Error.message(e);
+            Debug.print("❌ API key header test failed: " # msg);
+            "❌ FAIL: " # msg
+        }
+    };
+
+    // Test 5: API key in query parameter
+    public func test5_ApiKeyQuery() : async Text {
+        Debug.print("Test 5: API key in query parameter (api_key)");
+
+        let config : Config = {
+            baseUrl = "https://httpbin.org";
+            accessToken = null;
+            apiKey = ?"test-query-key-67890";
+            max_response_bytes = null;
+            transform = null;
+            is_replicated = null;
+            cycles = 30_000_000_000;
+        };
+
+        try {
+            let response = await* testApiKeyQuery(config);
+            // Check if the URL field contains the api_key parameter
+            switch (response.url) {
+                case (?url) {
+                    if (Text.contains(url, #text "api_key=test-query-key-67890")) {
+                        Debug.print("✅ API key in query parameter working correctly");
+                        "✅ PASS: API key sent as query parameter"
+                    } else {
+                        Debug.print("❌ API key not found in URL");
+                        Debug.print("  URL: " # url);
+                        "❌ FAIL: api_key not in query string"
+                    }
+                };
+                case null {
+                    Debug.print("❌ Response missing url field");
+                    "❌ FAIL: Invalid response structure"
+                };
+            }
+        } catch (e) {
+            let msg = Error.message(e);
+            Debug.print("❌ API key query test failed: " # msg);
+            "❌ FAIL: " # msg
+        }
+    };
+
     // Run all tests
     public func runAllTests() : async Text {
-        Debug.print("\n=== Bearer Auth Tests ===\n");
+        Debug.print("\n=== Authentication Tests ===\n");
 
         var passed = 0;
 
@@ -133,9 +203,17 @@ persistent actor HttpBinAuthTest {
         if (Text.startsWith(result3, #text "✅")) { passed += 1 };
         Debug.print("");
 
-        let results = [result1, result2, result3];
+        let result4 = await test4_ApiKeyHeader();
+        if (Text.startsWith(result4, #text "✅")) { passed += 1 };
+        Debug.print("");
+
+        let result5 = await test5_ApiKeyQuery();
+        if (Text.startsWith(result5, #text "✅")) { passed += 1 };
+        Debug.print("");
+
+        let results = [result1, result2, result3, result4, result5];
         let total = results.size();
-        let resultsText = result1 # "\n" # result2 # "\n" # result3;
+        let resultsText = result1 # "\n" # result2 # "\n" # result3 # "\n" # result4 # "\n" # result5;
         let summary = "\n=== Results ===" #
                      "\nPassed: " # debug_show(passed) # "/" # debug_show(total) # "\n\n" #
                      resultsText;

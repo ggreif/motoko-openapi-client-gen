@@ -81,6 +81,7 @@ module {
     type Config__ = {
         baseUrl : Text;
         accessToken : ?Text;
+        apiKey : ?Text;
         max_response_bytes : ?Nat64;
         transform : ?{
             function : shared query ({ response : http_request_result; context : Blob }) -> async http_request_result;
@@ -99,9 +100,23 @@ module {
     {{/notes}}
     public func {{operationId}}(config : Config__{{#allParams}}, {{paramName}} : {{#isNullable}}?{{/isNullable}}{{dataType}}{{/allParams}}) : async* {{#returnType}}{{{returnType}}}{{/returnType}}{{^returnType}}(){{/returnType}} {
         let {baseUrl; accessToken; cycles} = config;
-        let url = baseUrl # "{{path}}"{{#pathParams}}
+        let baseUrl__ = baseUrl # "{{path}}"{{#pathParams}}
             |> Text.replace(_, #text "{{=<% %>=}}{<%baseName%>}<%={{ }}=%>", {{#vendorExtensions.x-is-oneof-type}}{{{dataType}}}.toText({{paramName}}){{/vendorExtensions.x-is-oneof-type}}{{^vendorExtensions.x-is-oneof-type}}{{#isEnum}}{{{dataType}}}.toJSON({{paramName}}){{/isEnum}}{{#isEnumRef}}{{{dataType}}}.toJSON({{paramName}}){{/isEnumRef}}{{^isEnum}}{{^isEnumRef}}{{#isModel}}{{{dataType}}}.toJSON({{paramName}}){{/isModel}}{{^isModel}}{{#isString}}{{paramName}}{{/isString}}{{^isString}}{{#isInteger}}Int.toText({{paramName}}){{/isInteger}}{{^isInteger}}debug_show({{paramName}}){{/isInteger}}{{/isString}}{{/isModel}}{{/isEnumRef}}{{/isEnum}}{{/vendorExtensions.x-is-oneof-type}}){{/pathParams}}{{#queryParams}}{{#-first}}
             # "?"{{/-first}}{{^-first}} # "&"{{/-first}} # "{{baseName}}=" # {{#vendorExtensions.x-is-oneof-type}}{{{dataType}}}.toText({{paramName}}){{/vendorExtensions.x-is-oneof-type}}{{^vendorExtensions.x-is-oneof-type}}{{#isEnum}}{{{dataType}}}.toJSON({{paramName}}){{/isEnum}}{{#isEnumRef}}{{{dataType}}}.toJSON({{paramName}}){{/isEnumRef}}{{^isEnum}}{{^isEnumRef}}{{#isModel}}{{{dataType}}}.toJSON({{paramName}}){{/isModel}}{{^isModel}}{{#isString}}{{paramName}}{{/isString}}{{^isString}}{{#isInteger}}Int.toText({{paramName}}){{/isInteger}}{{^isInteger}}debug_show({{paramName}}){{/isInteger}}{{/isString}}{{/isModel}}{{/isEnumRef}}{{/isEnum}}{{/vendorExtensions.x-is-oneof-type}}{{/queryParams}};
+
+        {{#apiKeyQueryName}}
+        // Add API key as query parameter if provided
+        let url = switch (config.apiKey) {
+            case (?key) {
+                let separator = if (Text.contains(baseUrl__, #text "?")) "&" else "?";
+                baseUrl__ # separator # "{{apiKeyQueryName}}=" # key
+            };
+            case null baseUrl__;
+        };
+        {{/apiKeyQueryName}}
+        {{^apiKeyQueryName}}
+        let url = baseUrl__;
+        {{/apiKeyQueryName}}
 
         let baseHeaders = [
             { name = "Content-Type"; value = "application/json; charset=utf-8" }{{#headerParams}},
@@ -109,12 +124,24 @@ module {
         ];
 
         // Add Authorization header if access token is provided
-        let headers = switch (accessToken) {
-            case (?token) {
-                Array.concat(baseHeaders, [{ name = "Authorization"; value = "Bearer " # token }]);
-            };
-            case null { baseHeaders };
+        let authHeaders = switch (accessToken) {
+            case (?token) [{ name = "Authorization"; value = "Bearer " # token }];
+            case null [];
         };
+
+        {{#apiKeyHeaderName}}
+        // Add API key header if API key is provided
+        let apiKeyHeaders = switch (config.apiKey) {
+            case (?key) [{ name = "{{apiKeyHeaderName}}"; value = key }];
+            case null [];
+        };
+        {{/apiKeyHeaderName}}
+
+        let headers = Array.flatten<http_header>([
+            baseHeaders,
+            authHeaders{{#apiKeyHeaderName}},
+            apiKeyHeaders{{/apiKeyHeaderName}}
+        ]);
 
         let request : http_request_args = { config with
             url;

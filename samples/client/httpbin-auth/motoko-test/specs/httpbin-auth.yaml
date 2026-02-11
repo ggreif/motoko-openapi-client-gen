@@ -2,7 +2,7 @@ openapi: 3.0.0
 info:
   title: HTTPBin Auth Test API
   version: 1.0.0
-  description: Test API for bearer token authentication using httpbin.org endpoints
+  description: Test API for authentication (bearer tokens, API keys) using httpbin.org endpoints
 servers:
   - url: https://httpbin.org
 paths:
@@ -47,6 +47,60 @@ paths:
                     description: Map of all request headers
                     additionalProperties:
                       type: string
+  /response-headers:
+    get:
+      operationId: testApiKeyHeader
+      summary: Test API key in header
+      description: Validates that the API key is correctly sent in the X-API-Key header
+      security:
+        - apiKeyHeader: []
+      parameters:
+        - name: X-API-Key
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Echo back the API key in response headers (for verification)
+      responses:
+        '200':
+          description: Request processed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  Content-Type:
+                    type: string
+                  X-API-Key:
+                    type: string
+                    description: The API key that was received in the header
+        '401':
+          description: Unauthorized - no API key provided
+  /get:
+    get:
+      operationId: testApiKeyQuery
+      summary: Test API key in query parameter
+      description: Validates that the API key is correctly sent as a query parameter
+      security:
+        - apiKeyQuery: []
+      responses:
+        '200':
+          description: Request processed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  args:
+                    type: object
+                    description: Query parameters sent in the request
+                    additionalProperties:
+                      type: string
+                  url:
+                    type: string
+                    description: The full URL that was requested
+        '401':
+          description: Unauthorized - no API key provided
 components:
   securitySchemes:
     bearerAuth:
@@ -54,3 +108,13 @@ components:
       scheme: bearer
       bearerFormat: JWT
       description: Bearer token authentication (OAuth 2.0 style)
+    apiKeyHeader:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key in custom header
+    apiKeyQuery:
+      type: apiKey
+      in: query
+      name: api_key
+      description: API key as query parameter
