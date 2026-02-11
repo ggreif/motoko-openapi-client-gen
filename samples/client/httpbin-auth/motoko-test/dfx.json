@@ -1,14 +1,14 @@
 {
+  "version": 1,
+  "defaults": {
+    "build": {
+      "packtool": "npx ic-mops sources"
+    }
+  },
   "canisters": {
     "httpbin_auth_test": {
       "type": "motoko",
-      "main": "test.mo"
+      "main": "main.mo"
     }
-  },
-  "defaults": {
-    "build": {
-      "packtool": "mops sources"
-    }
-  },
-  "version": 1
+  }
 }

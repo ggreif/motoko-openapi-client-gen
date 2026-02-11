@@ -1,0 +1,46 @@
+#!/bin/bash
+# Typecheck generated code and main canister
+
+cd "$(dirname "$0")"
+
+echo "Installing dependencies..."
+(cd generated && npx ic-mops install)
+
+echo ""
+echo "Type checking generated client code..."
+
+FAILED=0
+PASSED=0
+
+# Change to generated directory to run moc with correct relative paths
+cd generated
+
+for file in Models/*.mo Apis/*.mo; do
+  if [ -f "$file" ]; then
+    echo "Checking $file..."
+    PACKAGE_FLAGS=$(npx ic-mops sources)
+    if moc --check $PACKAGE_FLAGS "$file" 2>&1; then
+      echo "✓ OK"
+      ((PASSED++))
+    else
+      echo "✗ FAILED"
+      ((FAILED++))
+    fi
+    echo ""
+  fi
+done
+
+echo "Type checking main canister..."
+PACKAGE_FLAGS=$(npx ic-mops sources)
+if moc --check $PACKAGE_FLAGS ../main.mo 2>&1; then
+  echo "✓ OK"
+  ((PASSED++))
+else
+  echo "✗ FAILED"
+  ((FAILED++))
+fi
+echo ""
+
+cd ..
+echo "Summary: $PASSED passed, $FAILED failed"
+exit $FAILED
