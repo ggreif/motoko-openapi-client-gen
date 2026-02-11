@@ -101,6 +101,42 @@ paths:
                     description: The full URL that was requested
         '401':
           description: Unauthorized - no API key provided
+  /basic-auth/{user}/{pass}:
+    get:
+      operationId: testBasicAuth
+      summary: Test Basic Authentication
+      description: Validates that Basic Auth credentials are correctly sent in the Authorization header
+      security:
+        - basicAuth: []
+      parameters:
+        - name: user
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Username for authentication
+        - name: pass
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Password for authentication
+      responses:
+        '200':
+          description: Authenticated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  authenticated:
+                    type: boolean
+                    description: Whether the request was authenticated
+                  user:
+                    type: string
+                    description: The username that was authenticated
+        '401':
+          description: Unauthorized - invalid credentials
 components:
   securitySchemes:
     bearerAuth:
@@ -118,3 +154,7 @@ components:
       in: query
       name: api_key
       description: API key as query parameter
+    basicAuth:
+      type: http
+      scheme: basic
+      description: Basic HTTP authentication (username and password)

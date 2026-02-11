@@ -1,4 +1,4 @@
-import { testBearer; getHeaders; testApiKeyHeader; testApiKeyQuery } "./generated/Apis/DefaultApi";
+import { testBearer; getHeaders; testApiKeyHeader; testApiKeyQuery; testBasicAuth } "./generated/Apis/DefaultApi";
 import Debug "mo:core/Debug";
 import Text "mo:core/Text";
 import Error "mo:core/Error";
@@ -8,6 +8,8 @@ persistent actor HttpBinAuthTest {
         baseUrl : Text;
         accessToken : ?Text;
         apiKey : ?Text;
+        basicAuthUser : ?Text;
+        basicAuthPassword : ?Text;
         max_response_bytes : ?Nat64;
         transform : ?{
             function : shared query ({ response : http_request_result; context : Blob }) -> async http_request_result;
@@ -31,6 +33,8 @@ persistent actor HttpBinAuthTest {
             baseUrl = "https://httpbin.org";
             accessToken = ?"test-token-12345";
             apiKey = null;
+            basicAuthUser = null;
+            basicAuthPassword = null;
             max_response_bytes = null;
             transform = null;
             is_replicated = null;
@@ -72,6 +76,8 @@ persistent actor HttpBinAuthTest {
             baseUrl = "https://httpbin.org";
             accessToken = null;
             apiKey = null;
+            basicAuthUser = null;
+            basicAuthPassword = null;
             max_response_bytes = null;
             transform = null;
             is_replicated = null;
@@ -102,6 +108,8 @@ persistent actor HttpBinAuthTest {
             baseUrl = "https://httpbin.org";
             accessToken = ?"my-secret-token";
             apiKey = null;
+            basicAuthUser = null;
+            basicAuthPassword = null;
             max_response_bytes = null;
             transform = null;
             is_replicated = null;
@@ -127,6 +135,8 @@ persistent actor HttpBinAuthTest {
             baseUrl = "https://httpbin.org";
             accessToken = null;
             apiKey = ?"test-api-key-12345";
+            basicAuthUser = null;
+            basicAuthPassword = null;
             max_response_bytes = null;
             transform = null;
             is_replicated = null;
@@ -153,6 +163,8 @@ persistent actor HttpBinAuthTest {
             baseUrl = "https://httpbin.org";
             accessToken = null;
             apiKey = ?"test-query-key-67890";
+            basicAuthUser = null;
+            basicAuthPassword = null;
             max_response_bytes = null;
             transform = null;
             is_replicated = null;
@@ -185,6 +197,48 @@ persistent actor HttpBinAuthTest {
         }
     };
 
+    // Test 6: Basic Authentication
+    public func test6_BasicAuth() : async Text {
+        Debug.print("Test 6: Basic Authentication (username:password)");
+
+        let config : Config = {
+            baseUrl = "https://httpbin.org";
+            accessToken = null;
+            apiKey = null;
+            basicAuthUser = ?"testuser";
+            basicAuthPassword = ?"testpass";
+            max_response_bytes = null;
+            transform = null;
+            is_replicated = null;
+            cycles = 30_000_000_000;
+        };
+
+        try {
+            let response = await* testBasicAuth(config, "testuser", "testpass");
+            // Check if authentication was successful
+            switch (response.authenticated, response.user) {
+                case (?true, ?"testuser") {
+                    Debug.print("✅ Basic auth working correctly");
+                    "✅ PASS: Basic auth credentials sent correctly"
+                };
+                case (?isAuth, ?user) {
+                    Debug.print("❌ Basic auth not working correctly");
+                    Debug.print("  Expected: authenticated=true, user=testuser");
+                    Debug.print("  Received: authenticated=" # debug_show(isAuth) # ", user=" # user);
+                    "❌ FAIL: Basic auth mismatch"
+                };
+                case _ {
+                    Debug.print("❌ Missing response fields");
+                    "❌ FAIL: Response missing authenticated or user field"
+                };
+            }
+        } catch (e) {
+            let msg = Error.message(e);
+            Debug.print("❌ Basic auth test failed: " # msg);
+            "❌ FAIL: " # msg
+        }
+    };
+
     // Run all tests
     public func runAllTests() : async Text {
         Debug.print("\n=== Authentication Tests ===\n");
@@ -211,9 +265,13 @@ persistent actor HttpBinAuthTest {
         if (Text.startsWith(result5, #text "✅")) { passed += 1 };
         Debug.print("");
 
-        let results = [result1, result2, result3, result4, result5];
+        let result6 = await test6_BasicAuth();
+        if (Text.startsWith(result6, #text "✅")) { passed += 1 };
+        Debug.print("");
+
+        let results = [result1, result2, result3, result4, result5, result6];
         let total = results.size();
-        let resultsText = result1 # "\n" # result2 # "\n" # result3 # "\n" # result4 # "\n" # result5;
+        let resultsText = result1 # "\n" # result2 # "\n" # result3 # "\n" # result4 # "\n" # result5 # "\n" # result6;
         let summary = "\n=== Results ===" #
                      "\nPassed: " # debug_show(passed) # "/" # debug_show(total) # "\n\n" #
                      resultsText;
