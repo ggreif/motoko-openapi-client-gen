@@ -94,7 +94,7 @@ This configuration uses:
 - **Array types**: Uses Motoko array syntax `[T]`
 - **Model imports**: Uses destructuring `import { type ModelName } "./ModelName"`
 - **DFX mode**: Optional `useDfx` flag for IC imports
-- **Authentication**: Bearer token support (Phase 1 complete) ✅
+- **Authentication**: Variant-based auth with bearer tokens, API keys, and Basic Auth ✅
 
 ## Authentication Support
 
@@ -114,11 +114,18 @@ security:
   - bearerAuth: []
 ```
 
-**Generated Config Type:**
+**Generated Types:**
 ```motoko
+public type Auth__ = {
+    #noAuth;
+    #bearer : Text;
+    #apiKey : Text;
+    #basicAuth : { user : Text; password : Text };
+};
+
 public type Config__ = {
     baseUrl : Text;
-    accessToken : ?Text;      // Bearer token goes here
+    auth : Auth__;
     max_response_bytes : ?Nat64;
     transform : ?TransformContext__;
     is_replicated : ?Bool;
@@ -133,7 +140,7 @@ import { getUser; listPosts } "./generated/Apis/DefaultApi";
 // Configure with bearer token
 let config = {
     baseUrl = "https://api.example.com";
-    accessToken = ?"your-bearer-token-here";
+    auth = #bearer("your-bearer-token-here");
     max_response_bytes = null;
     transform = null;
     is_replicated = null;
@@ -168,7 +175,7 @@ import { searchTracks } "./generated/Apis/DefaultApi";
 
 let config = {
     baseUrl = "https://api.spotify.com/v1";
-    accessToken = ?spotifyAccessToken;  // From OAuth flow
+    auth = #bearer(spotifyAccessToken);  // From OAuth flow
     cycles = 30_000_000_000;
     // ...
 };
@@ -197,16 +204,22 @@ components:
       name: api_key
 ```
 
-**Generated Config Type:**
+**Usage:**
 ```motoko
-public type Config__ = {
-    baseUrl : Text;
-    accessToken : ?Text;
-    apiKey : ?Text;           // API key goes here
-    max_response_bytes : ?Nat64;
-    transform : ?TransformContext__;
-    is_replicated : ?Bool;
-    cycles : Nat;
+// API key in header (X-API-Key)
+let config = {
+    baseUrl = "https://api.example.com";
+    auth = #apiKey("your-api-key-here");
+    cycles = 30_000_000_000;
+    // ...
+};
+
+// Same variant for query parameter - placement determined by OpenAPI spec
+let config = {
+    baseUrl = "https://api.example.com";
+    auth = #apiKey("your-api-key-here");  // Will append ?api_key=...
+    cycles = 30_000_000_000;
+    // ...
 };
 ```
 
@@ -214,6 +227,7 @@ public type Config__ = {
 - For header API keys: Adds custom header (e.g., `X-API-Key: your-key`)
 - For query API keys: Appends to URL (e.g., `?api_key=your-key`)
 - Automatically detects placement from OpenAPI spec
+- Same `#apiKey` variant works for both - template logic handles the difference
 
 ### Basic Authentication (HTTP Basic Auth) ✅
 
@@ -228,18 +242,13 @@ components:
       scheme: basic
 ```
 
-**Generated Config Type:**
+**Usage:**
 ```motoko
-public type Config__ = {
-    baseUrl : Text;
-    accessToken : ?Text;
-    apiKey : ?Text;
-    basicAuthUser : ?Text;      // Username for Basic Auth
-    basicAuthPassword : ?Text;  // Password for Basic Auth
-    max_response_bytes : ?Nat64;
-    transform : ?TransformContext__;
-    is_replicated : ?Bool;
-    cycles : Nat;
+let config = {
+    baseUrl = "https://api.example.com";
+    auth = #basicAuth({ user = "username"; password = "password" });
+    cycles = 30_000_000_000;
+    // ...
 };
 ```
 
@@ -247,6 +256,18 @@ public type Config__ = {
 - Encodes `username:password` as Base64
 - Adds `Authorization: Basic {base64-encoded-credentials}` header
 - Includes custom Base64 encoder in generated code
+
+### No Authentication
+
+For endpoints that don't require authentication:
+```motoko
+let config = {
+    baseUrl = "https://api.example.com";
+    auth = #noAuth;
+    cycles = 30_000_000_000;
+    // ...
+};
+```
 
 **Testing:**
 See `samples/client/httpbin-auth/motoko-test/` for complete working examples with all three authentication methods tested against httpbin.org.

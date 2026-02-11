@@ -1,23 +1,11 @@
-import { testBearer; getHeaders; testApiKeyHeader; testApiKeyQuery; testBasicAuth } "./generated/Apis/DefaultApi";
+import { testBearer; getHeaders; testApiKeyHeader; testApiKeyQuery; testBasicAuth; type Auth__; type Config__ } "./generated/Apis/DefaultApi";
 import Debug "mo:core/Debug";
 import Text "mo:core/Text";
 import Error "mo:core/Error";
 
 persistent actor HttpBinAuthTest {
-    type Config = {
-        baseUrl : Text;
-        accessToken : ?Text;
-        apiKey : ?Text;
-        basicAuthUser : ?Text;
-        basicAuthPassword : ?Text;
-        max_response_bytes : ?Nat64;
-        transform : ?{
-            function : shared query ({ response : http_request_result; context : Blob }) -> async http_request_result;
-            context : Blob;
-        };
-        is_replicated : ?Bool;
-        cycles : Nat;
-    };
+    type Auth = Auth__;
+    type Config = Config__;
 
     type http_request_result = {
         status : Nat;
@@ -31,10 +19,7 @@ persistent actor HttpBinAuthTest {
 
         let config : Config = {
             baseUrl = "https://httpbin.org";
-            accessToken = ?"test-token-12345";
-            apiKey = null;
-            basicAuthUser = null;
-            basicAuthPassword = null;
+            auth = #bearer("test-token-12345");
             max_response_bytes = null;
             transform = null;
             is_replicated = null;
@@ -74,10 +59,7 @@ persistent actor HttpBinAuthTest {
 
         let config : Config = {
             baseUrl = "https://httpbin.org";
-            accessToken = null;
-            apiKey = null;
-            basicAuthUser = null;
-            basicAuthPassword = null;
+            auth = #noAuth;
             max_response_bytes = null;
             transform = null;
             is_replicated = null;
@@ -106,10 +88,7 @@ persistent actor HttpBinAuthTest {
 
         let config : Config = {
             baseUrl = "https://httpbin.org";
-            accessToken = ?"my-secret-token";
-            apiKey = null;
-            basicAuthUser = null;
-            basicAuthPassword = null;
+            auth = #bearer("my-secret-token");
             max_response_bytes = null;
             transform = null;
             is_replicated = null;
@@ -133,10 +112,7 @@ persistent actor HttpBinAuthTest {
 
         let config : Config = {
             baseUrl = "https://httpbin.org";
-            accessToken = null;
-            apiKey = ?"test-api-key-12345";
-            basicAuthUser = null;
-            basicAuthPassword = null;
+            auth = #apiKey("test-api-key-12345");
             max_response_bytes = null;
             transform = null;
             is_replicated = null;
@@ -161,10 +137,7 @@ persistent actor HttpBinAuthTest {
 
         let config : Config = {
             baseUrl = "https://httpbin.org";
-            accessToken = null;
-            apiKey = ?"test-query-key-67890";
-            basicAuthUser = null;
-            basicAuthPassword = null;
+            auth = #apiKey("test-query-key-67890");
             max_response_bytes = null;
             transform = null;
             is_replicated = null;
@@ -203,10 +176,7 @@ persistent actor HttpBinAuthTest {
 
         let config : Config = {
             baseUrl = "https://httpbin.org";
-            accessToken = null;
-            apiKey = null;
-            basicAuthUser = ?"testuser";
-            basicAuthPassword = ?"testpass";
+            auth = #basicAuth({ user = "testuser"; password = "testpass" });
             max_response_bytes = null;
             transform = null;
             is_replicated = null;
