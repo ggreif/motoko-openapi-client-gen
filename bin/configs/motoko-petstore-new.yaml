@@ -6,3 +6,4 @@ artifactId: petstore-client
 artifactVersion: 1.0.0
 additionalProperties:
   hideGenerationTimestamp: "true"
+  useDfx: true

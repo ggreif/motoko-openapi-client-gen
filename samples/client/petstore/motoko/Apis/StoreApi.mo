@@ -9,17 +9,14 @@ import Array "mo:core/Array";
 import Iter "mo:core/Iter";
 import Error "mo:core/Error";
 import { JSON } "mo:serde";
+// FIXME: destructuring on `actor` types is not implemented yet for shared functions
+//        type error [M0114], object pattern cannot consume actor type
+import { type http_request_args; type http_request_result; type http_header } "ic:aaaaa-aa";
+import Mgnt__ = "ic:aaaaa-aa";
 import { type Order; JSON = Order } "../Models/Order";
 import { type Map } "mo:core/pure/Map";
 
 module {
-    // Management Canister interface for HTTP outcalls
-    // Based on types in https://github.com/dfinity/sdk/blob/master/src/dfx/src/util/ic.did
-    type http_header = {
-        name : Text;
-        value : Text;
-    };
-
     type http_method = {
         #get;
         #head;
@@ -31,26 +28,7 @@ module {
         // #delete;
     };
 
-    type http_request_args = {
-        url : Text;
-        max_response_bytes : ?Nat64;
-        method : http_method;
-        headers : [http_header];
-        body : ?Blob;
-        transform : ?{
-            function : shared query ({ response : http_request_result; context : Blob }) -> async http_request_result;
-            context : Blob;
-        };
-        is_replicated : ?Bool;
-    };
-
-    type http_request_result = {
-        status : Nat;
-        headers : [http_header];
-        body : Blob;
-    };
-
-    let http_request = (actor "aaaaa-aa" : actor { http_request : (http_request_args) -> async http_request_result }).http_request;
+    let http_request = Mgnt__.http_request;
 
     // Base64 encoding for Basic Auth
     func base64Encode(bytes : [Nat8]) : Text {
