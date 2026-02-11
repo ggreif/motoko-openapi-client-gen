@@ -2,7 +2,11 @@
 
 import Text "mo:core/Text";
 import Int "mo:core/Int";
+import Nat8 "mo:core/Nat8";
+import Nat32 "mo:core/Nat32";
+import Blob "mo:core/Blob";
 import Array "mo:core/Array";
+import Iter "mo:core/Iter";
 import Error "mo:core/Error";
 import { JSON } "mo:serde";
 import { type HttpHeader; JSON = HttpHeader } "../Models/HttpHeader";
@@ -56,9 +60,39 @@ module {
 
     let http_request = (actor "aaaaa-aa" : actor { http_request : (http_request_args) -> async http_request_result }).http_request;
 
-    type Config__ = {
+    // Base64 encoding for Basic Auth
+    func base64Encode(bytes : [Nat8]) : Text {
+        let base64Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        let base64CharsArray = Iter.toArray(base64Chars.chars());
+        var result = "";
+        var i = 0;
+        while (i < bytes.size()) {
+            let b1 = bytes[i];
+            let b2 : Nat8 = if (i + 1 < bytes.size()) bytes[i + 1] else 0;
+            let b3 : Nat8 = if (i + 2 < bytes.size()) bytes[i + 2] else 0;
+
+            let n = (Nat32.fromNat(Nat8.toNat(b1)) << 16) | (Nat32.fromNat(Nat8.toNat(b2)) << 8) | Nat32.fromNat(Nat8.toNat(b3));
+
+            let c1 = Text.fromChar(base64CharsArray[Nat32.toNat((n >> 18) & 0x3F)]);
+            let c2 = Text.fromChar(base64CharsArray[Nat32.toNat((n >> 12) & 0x3F)]);
+            let c3 = if (i + 1 < bytes.size()) Text.fromChar(base64CharsArray[Nat32.toNat((n >> 6) & 0x3F)]) else "=";
+            let c4 = if (i + 2 < bytes.size()) Text.fromChar(base64CharsArray[Nat32.toNat(n & 0x3F)]) else "=";
+
+            result #= c1 # c2 # c3 # c4;
+            i += 3;
+        };
+        result
+    };
+
+    public type Auth__ = {
+        #bearer : Text;
+        #apiKey : Text;
+        #basicAuth : { user : Text; password : Text };
+    };
+
+    public type Config__ = {
         baseUrl : Text;
-        accessToken : ?Text;
+        auth : ?Auth__;
         max_response_bytes : ?Nat64;
         transform : ?{
             function : shared query ({ response : http_request_result; context : Blob }) -> async http_request_result;
@@ -70,21 +104,41 @@ module {
 
     /// Set volume with oneOf query parameter
     public func setVolume(config : Config__, volume : VolumeParameter, zone : Text) : async* SetVolume200Response {
-        let {baseUrl; accessToken; cycles} = config;
-        let url = baseUrl # "/set-volume"
+        let {baseUrl; cycles} = config;
+        let baseUrl__ = baseUrl # "/set-volume"
             # "?" # "volume=" # VolumeParameter.toText(volume) # "&" # "zone=" # zone;
+
+        // Add API key as query parameter if using apiKey auth
+        let url = switch (config.auth) {
+            case _ baseUrl__;
+        };
 
         let baseHeaders = [
             { name = "Content-Type"; value = "application/json; charset=utf-8" }
         ];
 
-        // Add Authorization header if access token is provided
-        let headers = switch (accessToken) {
-            case (?token) {
-                Array.concat(baseHeaders, [{ name = "Authorization"; value = "Bearer " # token }]);
+        // Build authentication headers based on auth type
+        let authHeaders = switch (config.auth) {
+            case (?#bearer(token)) {
+                [{ name = "Authorization"; value = "Bearer " # token }]
             };
-            case null { baseHeaders };
+            case (?#apiKey(key)) {
+                // API key goes in query parameter, not header
+                []
+            };
+            case (?#basicAuth({user; password})) {
+                let credentials = user # ":" # password;
+                let credentialsBytes = Blob.toArray(Text.encodeUtf8(credentials));
+                let encoded = base64Encode(credentialsBytes);
+                [{ name = "Authorization"; value = "Basic " # encoded }]
+            };
+            case null [];
         };
+
+        let headers = Array.flatten<http_header>([
+            baseHeaders,
+            authHeaders
+        ]);
 
         let request : http_request_args = { config with
             url;
@@ -133,20 +187,40 @@ module {
 
     /// Test record fields with hyphens
     public func testEscapedFields(config : Config__, httpHeader : HttpHeader) : async* HttpHeader {
-        let {baseUrl; accessToken; cycles} = config;
-        let url = baseUrl # "/test-escaped-fields";
+        let {baseUrl; cycles} = config;
+        let baseUrl__ = baseUrl # "/test-escaped-fields";
+
+        // Add API key as query parameter if using apiKey auth
+        let url = switch (config.auth) {
+            case _ baseUrl__;
+        };
 
         let baseHeaders = [
             { name = "Content-Type"; value = "application/json; charset=utf-8" }
         ];
 
-        // Add Authorization header if access token is provided
-        let headers = switch (accessToken) {
-            case (?token) {
-                Array.concat(baseHeaders, [{ name = "Authorization"; value = "Bearer " # token }]);
+        // Build authentication headers based on auth type
+        let authHeaders = switch (config.auth) {
+            case (?#bearer(token)) {
+                [{ name = "Authorization"; value = "Bearer " # token }]
             };
-            case null { baseHeaders };
+            case (?#apiKey(key)) {
+                // API key goes in query parameter, not header
+                []
+            };
+            case (?#basicAuth({user; password})) {
+                let credentials = user # ":" # password;
+                let credentialsBytes = Blob.toArray(Text.encodeUtf8(credentials));
+                let encoded = base64Encode(credentialsBytes);
+                [{ name = "Authorization"; value = "Basic " # encoded }]
+            };
+            case null [];
         };
+
+        let headers = Array.flatten<http_header>([
+            baseHeaders,
+            authHeaders
+        ]);
 
         let request : http_request_args = { config with
             url;
@@ -200,20 +274,40 @@ module {
 
     /// Test hyphenated enum values
     public func testHyphenatedEnum(config : Config__, testHyphenatedEnumRequest : TestHyphenatedEnumRequest) : async* TestHyphenatedEnumRequest {
-        let {baseUrl; accessToken; cycles} = config;
-        let url = baseUrl # "/test-hyphenated-enum";
+        let {baseUrl; cycles} = config;
+        let baseUrl__ = baseUrl # "/test-hyphenated-enum";
+
+        // Add API key as query parameter if using apiKey auth
+        let url = switch (config.auth) {
+            case _ baseUrl__;
+        };
 
         let baseHeaders = [
             { name = "Content-Type"; value = "application/json; charset=utf-8" }
         ];
 
-        // Add Authorization header if access token is provided
-        let headers = switch (accessToken) {
-            case (?token) {
-                Array.concat(baseHeaders, [{ name = "Authorization"; value = "Bearer " # token }]);
+        // Build authentication headers based on auth type
+        let authHeaders = switch (config.auth) {
+            case (?#bearer(token)) {
+                [{ name = "Authorization"; value = "Bearer " # token }]
             };
-            case null { baseHeaders };
+            case (?#apiKey(key)) {
+                // API key goes in query parameter, not header
+                []
+            };
+            case (?#basicAuth({user; password})) {
+                let credentials = user # ":" # password;
+                let credentialsBytes = Blob.toArray(Text.encodeUtf8(credentials));
+                let encoded = base64Encode(credentialsBytes);
+                [{ name = "Authorization"; value = "Basic " # encoded }]
+            };
+            case null [];
         };
+
+        let headers = Array.flatten<http_header>([
+            baseHeaders,
+            authHeaders
+        ]);
 
         let request : http_request_args = { config with
             url;
@@ -267,21 +361,41 @@ module {
 
     /// Test mixed oneOf as query parameter
     public func testMixedOneOf(config : Config__, value : MixedOneOf) : async* TestMixedOneOf200Response {
-        let {baseUrl; accessToken; cycles} = config;
-        let url = baseUrl # "/test-mixed-oneof"
+        let {baseUrl; cycles} = config;
+        let baseUrl__ = baseUrl # "/test-mixed-oneof"
             # "?" # "value=" # MixedOneOf.toText(value);
+
+        // Add API key as query parameter if using apiKey auth
+        let url = switch (config.auth) {
+            case _ baseUrl__;
+        };
 
         let baseHeaders = [
             { name = "Content-Type"; value = "application/json; charset=utf-8" }
         ];
 
-        // Add Authorization header if access token is provided
-        let headers = switch (accessToken) {
-            case (?token) {
-                Array.concat(baseHeaders, [{ name = "Authorization"; value = "Bearer " # token }]);
+        // Build authentication headers based on auth type
+        let authHeaders = switch (config.auth) {
+            case (?#bearer(token)) {
+                [{ name = "Authorization"; value = "Bearer " # token }]
             };
-            case null { baseHeaders };
+            case (?#apiKey(key)) {
+                // API key goes in query parameter, not header
+                []
+            };
+            case (?#basicAuth({user; password})) {
+                let credentials = user # ":" # password;
+                let credentialsBytes = Blob.toArray(Text.encodeUtf8(credentials));
+                let encoded = base64Encode(credentialsBytes);
+                [{ name = "Authorization"; value = "Basic " # encoded }]
+            };
+            case null [];
         };
+
+        let headers = Array.flatten<http_header>([
+            baseHeaders,
+            authHeaders
+        ]);
 
         let request : http_request_args = { config with
             url;
@@ -330,20 +444,40 @@ module {
 
     /// Test numeric enum values
     public func testNumericEnum(config : Config__, testNumericEnumRequest : TestNumericEnumRequest) : async* TestNumericEnumRequest {
-        let {baseUrl; accessToken; cycles} = config;
-        let url = baseUrl # "/test-numeric-enum";
+        let {baseUrl; cycles} = config;
+        let baseUrl__ = baseUrl # "/test-numeric-enum";
+
+        // Add API key as query parameter if using apiKey auth
+        let url = switch (config.auth) {
+            case _ baseUrl__;
+        };
 
         let baseHeaders = [
             { name = "Content-Type"; value = "application/json; charset=utf-8" }
         ];
 
-        // Add Authorization header if access token is provided
-        let headers = switch (accessToken) {
-            case (?token) {
-                Array.concat(baseHeaders, [{ name = "Authorization"; value = "Bearer " # token }]);
+        // Build authentication headers based on auth type
+        let authHeaders = switch (config.auth) {
+            case (?#bearer(token)) {
+                [{ name = "Authorization"; value = "Bearer " # token }]
             };
-            case null { baseHeaders };
+            case (?#apiKey(key)) {
+                // API key goes in query parameter, not header
+                []
+            };
+            case (?#basicAuth({user; password})) {
+                let credentials = user # ":" # password;
+                let credentialsBytes = Blob.toArray(Text.encodeUtf8(credentials));
+                let encoded = base64Encode(credentialsBytes);
+                [{ name = "Authorization"; value = "Basic " # encoded }]
+            };
+            case null [];
         };
+
+        let headers = Array.flatten<http_header>([
+            baseHeaders,
+            authHeaders
+        ]);
 
         let request : http_request_args = { config with
             url;
@@ -397,20 +531,40 @@ module {
 
     /// Test oneOf discriminated union (similar to Yamaha volume parameter)
     public func testOneOfVariant(config : Config__, testOneOfVariantRequest : TestOneOfVariantRequest) : async* TestOneOfVariantRequest {
-        let {baseUrl; accessToken; cycles} = config;
-        let url = baseUrl # "/test-oneof-variant";
+        let {baseUrl; cycles} = config;
+        let baseUrl__ = baseUrl # "/test-oneof-variant";
+
+        // Add API key as query parameter if using apiKey auth
+        let url = switch (config.auth) {
+            case _ baseUrl__;
+        };
 
         let baseHeaders = [
             { name = "Content-Type"; value = "application/json; charset=utf-8" }
         ];
 
-        // Add Authorization header if access token is provided
-        let headers = switch (accessToken) {
-            case (?token) {
-                Array.concat(baseHeaders, [{ name = "Authorization"; value = "Bearer " # token }]);
+        // Build authentication headers based on auth type
+        let authHeaders = switch (config.auth) {
+            case (?#bearer(token)) {
+                [{ name = "Authorization"; value = "Bearer " # token }]
             };
-            case null { baseHeaders };
+            case (?#apiKey(key)) {
+                // API key goes in query parameter, not header
+                []
+            };
+            case (?#basicAuth({user; password})) {
+                let credentials = user # ":" # password;
+                let credentialsBytes = Blob.toArray(Text.encodeUtf8(credentials));
+                let encoded = base64Encode(credentialsBytes);
+                [{ name = "Authorization"; value = "Basic " # encoded }]
+            };
+            case null [];
         };
+
+        let headers = Array.flatten<http_header>([
+            baseHeaders,
+            authHeaders
+        ]);
 
         let request : http_request_args = { config with
             url;
@@ -464,20 +618,40 @@ module {
 
     /// Test reserved word field names
     public func testReservedWords(config : Config__, reservedWordModel : ReservedWordModel) : async* ReservedWordModel {
-        let {baseUrl; accessToken; cycles} = config;
-        let url = baseUrl # "/test-reserved-words";
+        let {baseUrl; cycles} = config;
+        let baseUrl__ = baseUrl # "/test-reserved-words";
+
+        // Add API key as query parameter if using apiKey auth
+        let url = switch (config.auth) {
+            case _ baseUrl__;
+        };
 
         let baseHeaders = [
             { name = "Content-Type"; value = "application/json; charset=utf-8" }
         ];
 
-        // Add Authorization header if access token is provided
-        let headers = switch (accessToken) {
-            case (?token) {
-                Array.concat(baseHeaders, [{ name = "Authorization"; value = "Bearer " # token }]);
+        // Build authentication headers based on auth type
+        let authHeaders = switch (config.auth) {
+            case (?#bearer(token)) {
+                [{ name = "Authorization"; value = "Bearer " # token }]
             };
-            case null { baseHeaders };
+            case (?#apiKey(key)) {
+                // API key goes in query parameter, not header
+                []
+            };
+            case (?#basicAuth({user; password})) {
+                let credentials = user # ":" # password;
+                let credentialsBytes = Blob.toArray(Text.encodeUtf8(credentials));
+                let encoded = base64Encode(credentialsBytes);
+                [{ name = "Authorization"; value = "Basic " # encoded }]
+            };
+            case null [];
         };
+
+        let headers = Array.flatten<http_header>([
+            baseHeaders,
+            authHeaders
+        ]);
 
         let request : http_request_args = { config with
             url;
@@ -531,20 +705,40 @@ module {
 
     /// Test transitive enum references (Record containing Record containing Enum)
     public func testTransitiveEnum(config : Config__, outerRecord : OuterRecord) : async* OuterRecord {
-        let {baseUrl; accessToken; cycles} = config;
-        let url = baseUrl # "/test-transitive-enum";
+        let {baseUrl; cycles} = config;
+        let baseUrl__ = baseUrl # "/test-transitive-enum";
+
+        // Add API key as query parameter if using apiKey auth
+        let url = switch (config.auth) {
+            case _ baseUrl__;
+        };
 
         let baseHeaders = [
             { name = "Content-Type"; value = "application/json; charset=utf-8" }
         ];
 
-        // Add Authorization header if access token is provided
-        let headers = switch (accessToken) {
-            case (?token) {
-                Array.concat(baseHeaders, [{ name = "Authorization"; value = "Bearer " # token }]);
+        // Build authentication headers based on auth type
+        let authHeaders = switch (config.auth) {
+            case (?#bearer(token)) {
+                [{ name = "Authorization"; value = "Bearer " # token }]
             };
-            case null { baseHeaders };
+            case (?#apiKey(key)) {
+                // API key goes in query parameter, not header
+                []
+            };
+            case (?#basicAuth({user; password})) {
+                let credentials = user # ":" # password;
+                let credentialsBytes = Blob.toArray(Text.encodeUtf8(credentials));
+                let encoded = base64Encode(credentialsBytes);
+                [{ name = "Authorization"; value = "Basic " # encoded }]
+            };
+            case null [];
         };
+
+        let headers = Array.flatten<http_header>([
+            baseHeaders,
+            authHeaders
+        ]);
 
         let request : http_request_args = { config with
             url;

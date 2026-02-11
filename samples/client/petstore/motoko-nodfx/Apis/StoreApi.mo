@@ -2,7 +2,11 @@
 
 import Text "mo:core/Text";
 import Int "mo:core/Int";
+import Nat8 "mo:core/Nat8";
+import Nat32 "mo:core/Nat32";
+import Blob "mo:core/Blob";
 import Array "mo:core/Array";
+import Iter "mo:core/Iter";
 import Error "mo:core/Error";
 import { JSON } "mo:serde";
 import { type Order; JSON = Order } "../Models/Order";
@@ -48,9 +52,39 @@ module {
 
     let http_request = (actor "aaaaa-aa" : actor { http_request : (http_request_args) -> async http_request_result }).http_request;
 
-    type Config__ = {
+    // Base64 encoding for Basic Auth
+    func base64Encode(bytes : [Nat8]) : Text {
+        let base64Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        let base64CharsArray = Iter.toArray(base64Chars.chars());
+        var result = "";
+        var i = 0;
+        while (i < bytes.size()) {
+            let b1 = bytes[i];
+            let b2 : Nat8 = if (i + 1 < bytes.size()) bytes[i + 1] else 0;
+            let b3 : Nat8 = if (i + 2 < bytes.size()) bytes[i + 2] else 0;
+
+            let n = (Nat32.fromNat(Nat8.toNat(b1)) << 16) | (Nat32.fromNat(Nat8.toNat(b2)) << 8) | Nat32.fromNat(Nat8.toNat(b3));
+
+            let c1 = Text.fromChar(base64CharsArray[Nat32.toNat((n >> 18) & 0x3F)]);
+            let c2 = Text.fromChar(base64CharsArray[Nat32.toNat((n >> 12) & 0x3F)]);
+            let c3 = if (i + 1 < bytes.size()) Text.fromChar(base64CharsArray[Nat32.toNat((n >> 6) & 0x3F)]) else "=";
+            let c4 = if (i + 2 < bytes.size()) Text.fromChar(base64CharsArray[Nat32.toNat(n & 0x3F)]) else "=";
+
+            result #= c1 # c2 # c3 # c4;
+            i += 3;
+        };
+        result
+    };
+
+    public type Auth__ = {
+        #bearer : Text;
+        #apiKey : Text;
+        #basicAuth : { user : Text; password : Text };
+    };
+
+    public type Config__ = {
         baseUrl : Text;
-        accessToken : ?Text;
+        auth : ?Auth__;
         max_response_bytes : ?Nat64;
         transform : ?{
             function : shared query ({ response : http_request_result; context : Blob }) -> async http_request_result;
@@ -63,21 +97,41 @@ module {
     /// Delete purchase order by ID
     /// For valid response try integer IDs with value < 1000. Anything above 1000 or nonintegers will generate API errors
     public func deleteOrder(config : Config__, orderId : Text) : async* () {
-        let {baseUrl; accessToken; cycles} = config;
-        let url = baseUrl # "/store/order/{orderId}"
+        let {baseUrl; cycles} = config;
+        let baseUrl__ = baseUrl # "/store/order/{orderId}"
             |> Text.replace(_, #text "{orderId}", orderId);
+
+        // Add API key as query parameter if using apiKey auth
+        let url = switch (config.auth) {
+            case _ baseUrl__;
+        };
 
         let baseHeaders = [
             { name = "Content-Type"; value = "application/json; charset=utf-8" }
         ];
 
-        // Add Authorization header if access token is provided
-        let headers = switch (accessToken) {
-            case (?token) {
-                Array.concat(baseHeaders, [{ name = "Authorization"; value = "Bearer " # token }]);
+        // Build authentication headers based on auth type
+        let authHeaders = switch (config.auth) {
+            case (?#bearer(token)) {
+                [{ name = "Authorization"; value = "Bearer " # token }]
             };
-            case null { baseHeaders };
+            case (?#apiKey(key)) {
+                // API key goes in header
+                [{ name = "api_key"; value = key }]
+            };
+            case (?#basicAuth({user; password})) {
+                let credentials = user # ":" # password;
+                let credentialsBytes = Blob.toArray(Text.encodeUtf8(credentials));
+                let encoded = base64Encode(credentialsBytes);
+                [{ name = "Authorization"; value = "Basic " # encoded }]
+            };
+            case null [];
         };
+
+        let headers = Array.flatten<http_header>([
+            baseHeaders,
+            authHeaders
+        ]);
 
         let request : http_request_args = { config with
             url;
@@ -94,20 +148,40 @@ module {
     /// Returns pet inventories by status
     /// Returns a map of status codes to quantities
     public func getInventory(config : Config__) : async* Map<Text, Int> {
-        let {baseUrl; accessToken; cycles} = config;
-        let url = baseUrl # "/store/inventory";
+        let {baseUrl; cycles} = config;
+        let baseUrl__ = baseUrl # "/store/inventory";
+
+        // Add API key as query parameter if using apiKey auth
+        let url = switch (config.auth) {
+            case _ baseUrl__;
+        };
 
         let baseHeaders = [
             { name = "Content-Type"; value = "application/json; charset=utf-8" }
         ];
 
-        // Add Authorization header if access token is provided
-        let headers = switch (accessToken) {
-            case (?token) {
-                Array.concat(baseHeaders, [{ name = "Authorization"; value = "Bearer " # token }]);
+        // Build authentication headers based on auth type
+        let authHeaders = switch (config.auth) {
+            case (?#bearer(token)) {
+                [{ name = "Authorization"; value = "Bearer " # token }]
             };
-            case null { baseHeaders };
+            case (?#apiKey(key)) {
+                // API key goes in header
+                [{ name = "api_key"; value = key }]
+            };
+            case (?#basicAuth({user; password})) {
+                let credentials = user # ":" # password;
+                let credentialsBytes = Blob.toArray(Text.encodeUtf8(credentials));
+                let encoded = base64Encode(credentialsBytes);
+                [{ name = "Authorization"; value = "Basic " # encoded }]
+            };
+            case null [];
         };
+
+        let headers = Array.flatten<http_header>([
+            baseHeaders,
+            authHeaders
+        ]);
 
         let request : http_request_args = { config with
             url;
@@ -157,21 +231,41 @@ module {
     /// Find purchase order by ID
     /// For valid response try integer IDs with value <= 5 or > 10. Other values will generate exceptions
     public func getOrderById(config : Config__, orderId : Nat) : async* Order {
-        let {baseUrl; accessToken; cycles} = config;
-        let url = baseUrl # "/store/order/{orderId}"
+        let {baseUrl; cycles} = config;
+        let baseUrl__ = baseUrl # "/store/order/{orderId}"
             |> Text.replace(_, #text "{orderId}", debug_show(orderId));
+
+        // Add API key as query parameter if using apiKey auth
+        let url = switch (config.auth) {
+            case _ baseUrl__;
+        };
 
         let baseHeaders = [
             { name = "Content-Type"; value = "application/json; charset=utf-8" }
         ];
 
-        // Add Authorization header if access token is provided
-        let headers = switch (accessToken) {
-            case (?token) {
-                Array.concat(baseHeaders, [{ name = "Authorization"; value = "Bearer " # token }]);
+        // Build authentication headers based on auth type
+        let authHeaders = switch (config.auth) {
+            case (?#bearer(token)) {
+                [{ name = "Authorization"; value = "Bearer " # token }]
             };
-            case null { baseHeaders };
+            case (?#apiKey(key)) {
+                // API key goes in header
+                [{ name = "api_key"; value = key }]
+            };
+            case (?#basicAuth({user; password})) {
+                let credentials = user # ":" # password;
+                let credentialsBytes = Blob.toArray(Text.encodeUtf8(credentials));
+                let encoded = base64Encode(credentialsBytes);
+                [{ name = "Authorization"; value = "Basic " # encoded }]
+            };
+            case null [];
         };
+
+        let headers = Array.flatten<http_header>([
+            baseHeaders,
+            authHeaders
+        ]);
 
         let request : http_request_args = { config with
             url;
@@ -229,20 +323,40 @@ module {
     /// Place an order for a pet
     /// 
     public func placeOrder(config : Config__, order : Order) : async* Order {
-        let {baseUrl; accessToken; cycles} = config;
-        let url = baseUrl # "/store/order";
+        let {baseUrl; cycles} = config;
+        let baseUrl__ = baseUrl # "/store/order";
+
+        // Add API key as query parameter if using apiKey auth
+        let url = switch (config.auth) {
+            case _ baseUrl__;
+        };
 
         let baseHeaders = [
             { name = "Content-Type"; value = "application/json; charset=utf-8" }
         ];
 
-        // Add Authorization header if access token is provided
-        let headers = switch (accessToken) {
-            case (?token) {
-                Array.concat(baseHeaders, [{ name = "Authorization"; value = "Bearer " # token }]);
+        // Build authentication headers based on auth type
+        let authHeaders = switch (config.auth) {
+            case (?#bearer(token)) {
+                [{ name = "Authorization"; value = "Bearer " # token }]
             };
-            case null { baseHeaders };
+            case (?#apiKey(key)) {
+                // API key goes in header
+                [{ name = "api_key"; value = key }]
+            };
+            case (?#basicAuth({user; password})) {
+                let credentials = user # ":" # password;
+                let credentialsBytes = Blob.toArray(Text.encodeUtf8(credentials));
+                let encoded = base64Encode(credentialsBytes);
+                [{ name = "Authorization"; value = "Basic " # encoded }]
+            };
+            case null [];
         };
+
+        let headers = Array.flatten<http_header>([
+            baseHeaders,
+            authHeaders
+        ]);
 
         let request : http_request_args = { config with
             url;

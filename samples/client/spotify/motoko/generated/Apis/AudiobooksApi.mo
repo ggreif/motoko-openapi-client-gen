@@ -2,7 +2,11 @@
 
 import Text "mo:core/Text";
 import Int "mo:core/Int";
+import Nat8 "mo:core/Nat8";
+import Nat32 "mo:core/Nat32";
+import Blob "mo:core/Blob";
 import Array "mo:core/Array";
+import Iter "mo:core/Iter";
 import Error "mo:core/Error";
 import { JSON } "mo:serde";
 import { type AudiobookObject; JSON = AudiobookObject } "../Models/AudiobookObject";
@@ -51,9 +55,39 @@ module {
 
     let http_request = (actor "aaaaa-aa" : actor { http_request : (http_request_args) -> async http_request_result }).http_request;
 
-    type Config__ = {
+    // Base64 encoding for Basic Auth
+    func base64Encode(bytes : [Nat8]) : Text {
+        let base64Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        let base64CharsArray = Iter.toArray(base64Chars.chars());
+        var result = "";
+        var i = 0;
+        while (i < bytes.size()) {
+            let b1 = bytes[i];
+            let b2 : Nat8 = if (i + 1 < bytes.size()) bytes[i + 1] else 0;
+            let b3 : Nat8 = if (i + 2 < bytes.size()) bytes[i + 2] else 0;
+
+            let n = (Nat32.fromNat(Nat8.toNat(b1)) << 16) | (Nat32.fromNat(Nat8.toNat(b2)) << 8) | Nat32.fromNat(Nat8.toNat(b3));
+
+            let c1 = Text.fromChar(base64CharsArray[Nat32.toNat((n >> 18) & 0x3F)]);
+            let c2 = Text.fromChar(base64CharsArray[Nat32.toNat((n >> 12) & 0x3F)]);
+            let c3 = if (i + 1 < bytes.size()) Text.fromChar(base64CharsArray[Nat32.toNat((n >> 6) & 0x3F)]) else "=";
+            let c4 = if (i + 2 < bytes.size()) Text.fromChar(base64CharsArray[Nat32.toNat(n & 0x3F)]) else "=";
+
+            result #= c1 # c2 # c3 # c4;
+            i += 3;
+        };
+        result
+    };
+
+    public type Auth__ = {
+        #bearer : Text;
+        #apiKey : Text;
+        #basicAuth : { user : Text; password : Text };
+    };
+
+    public type Config__ = {
         baseUrl : Text;
-        accessToken : ?Text;
+        auth : ?Auth__;
         max_response_bytes : ?Nat64;
         transform : ?{
             function : shared query ({ response : http_request_result; context : Blob }) -> async http_request_result;
@@ -66,21 +100,41 @@ module {
     /// Check User's Saved Audiobooks 
     /// Check if one or more audiobooks are already saved in the current Spotify user's library. 
     public func checkUsersSavedAudiobooks(config : Config__, ids : Text) : async* [Bool] {
-        let {baseUrl; accessToken; cycles} = config;
-        let url = baseUrl # "/me/audiobooks/contains"
+        let {baseUrl; cycles} = config;
+        let baseUrl__ = baseUrl # "/me/audiobooks/contains"
             # "?" # "ids=" # ids;
+
+        // Add API key as query parameter if using apiKey auth
+        let url = switch (config.auth) {
+            case _ baseUrl__;
+        };
 
         let baseHeaders = [
             { name = "Content-Type"; value = "application/json; charset=utf-8" }
         ];
 
-        // Add Authorization header if access token is provided
-        let headers = switch (accessToken) {
-            case (?token) {
-                Array.concat(baseHeaders, [{ name = "Authorization"; value = "Bearer " # token }]);
+        // Build authentication headers based on auth type
+        let authHeaders = switch (config.auth) {
+            case (?#bearer(token)) {
+                [{ name = "Authorization"; value = "Bearer " # token }]
             };
-            case null { baseHeaders };
+            case (?#apiKey(key)) {
+                // API key goes in query parameter, not header
+                []
+            };
+            case (?#basicAuth({user; password})) {
+                let credentials = user # ":" # password;
+                let credentialsBytes = Blob.toArray(Text.encodeUtf8(credentials));
+                let encoded = base64Encode(credentialsBytes);
+                [{ name = "Authorization"; value = "Basic " # encoded }]
+            };
+            case null [];
         };
+
+        let headers = Array.flatten<http_header>([
+            baseHeaders,
+            authHeaders
+        ]);
 
         let request : http_request_args = { config with
             url;
@@ -188,22 +242,42 @@ module {
     /// Get an Audiobook 
     /// Get Spotify catalog information for a single audiobook. Audiobooks are only available within the US, UK, Canada, Ireland, New Zealand and Australia markets. 
     public func getAnAudiobook(config : Config__, id : Text, market : Text) : async* AudiobookObject {
-        let {baseUrl; accessToken; cycles} = config;
-        let url = baseUrl # "/audiobooks/{id}"
+        let {baseUrl; cycles} = config;
+        let baseUrl__ = baseUrl # "/audiobooks/{id}"
             |> Text.replace(_, #text "{id}", id)
             # "?" # "market=" # market;
+
+        // Add API key as query parameter if using apiKey auth
+        let url = switch (config.auth) {
+            case _ baseUrl__;
+        };
 
         let baseHeaders = [
             { name = "Content-Type"; value = "application/json; charset=utf-8" }
         ];
 
-        // Add Authorization header if access token is provided
-        let headers = switch (accessToken) {
-            case (?token) {
-                Array.concat(baseHeaders, [{ name = "Authorization"; value = "Bearer " # token }]);
+        // Build authentication headers based on auth type
+        let authHeaders = switch (config.auth) {
+            case (?#bearer(token)) {
+                [{ name = "Authorization"; value = "Bearer " # token }]
             };
-            case null { baseHeaders };
+            case (?#apiKey(key)) {
+                // API key goes in query parameter, not header
+                []
+            };
+            case (?#basicAuth({user; password})) {
+                let credentials = user # ":" # password;
+                let credentialsBytes = Blob.toArray(Text.encodeUtf8(credentials));
+                let encoded = base64Encode(credentialsBytes);
+                [{ name = "Authorization"; value = "Basic " # encoded }]
+            };
+            case null [];
         };
+
+        let headers = Array.flatten<http_header>([
+            baseHeaders,
+            authHeaders
+        ]);
 
         let request : http_request_args = { config with
             url;
@@ -358,22 +432,42 @@ module {
     /// Get Audiobook Chapters 
     /// Get Spotify catalog information about an audiobook's chapters. Audiobooks are only available within the US, UK, Canada, Ireland, New Zealand and Australia markets. 
     public func getAudiobookChapters(config : Config__, id : Text, market : Text, limit : Nat, offset : Int) : async* PagingSimplifiedChapterObject {
-        let {baseUrl; accessToken; cycles} = config;
-        let url = baseUrl # "/audiobooks/{id}/chapters"
+        let {baseUrl; cycles} = config;
+        let baseUrl__ = baseUrl # "/audiobooks/{id}/chapters"
             |> Text.replace(_, #text "{id}", id)
             # "?" # "market=" # market # "&" # "limit=" # Int.toText(limit) # "&" # "offset=" # Int.toText(offset);
+
+        // Add API key as query parameter if using apiKey auth
+        let url = switch (config.auth) {
+            case _ baseUrl__;
+        };
 
         let baseHeaders = [
             { name = "Content-Type"; value = "application/json; charset=utf-8" }
         ];
 
-        // Add Authorization header if access token is provided
-        let headers = switch (accessToken) {
-            case (?token) {
-                Array.concat(baseHeaders, [{ name = "Authorization"; value = "Bearer " # token }]);
+        // Build authentication headers based on auth type
+        let authHeaders = switch (config.auth) {
+            case (?#bearer(token)) {
+                [{ name = "Authorization"; value = "Bearer " # token }]
             };
-            case null { baseHeaders };
+            case (?#apiKey(key)) {
+                // API key goes in query parameter, not header
+                []
+            };
+            case (?#basicAuth({user; password})) {
+                let credentials = user # ":" # password;
+                let credentialsBytes = Blob.toArray(Text.encodeUtf8(credentials));
+                let encoded = base64Encode(credentialsBytes);
+                [{ name = "Authorization"; value = "Basic " # encoded }]
+            };
+            case null [];
         };
+
+        let headers = Array.flatten<http_header>([
+            baseHeaders,
+            authHeaders
+        ]);
 
         let request : http_request_args = { config with
             url;
@@ -486,21 +580,41 @@ module {
     /// Get Several Audiobooks 
     /// Get Spotify catalog information for several audiobooks identified by their Spotify IDs. Audiobooks are only available within the US, UK, Canada, Ireland, New Zealand and Australia markets. 
     public func getMultipleAudiobooks(config : Config__, ids : Text, market : Text) : async* GetMultipleAudiobooks200Response {
-        let {baseUrl; accessToken; cycles} = config;
-        let url = baseUrl # "/audiobooks"
+        let {baseUrl; cycles} = config;
+        let baseUrl__ = baseUrl # "/audiobooks"
             # "?" # "ids=" # ids # "&" # "market=" # market;
+
+        // Add API key as query parameter if using apiKey auth
+        let url = switch (config.auth) {
+            case _ baseUrl__;
+        };
 
         let baseHeaders = [
             { name = "Content-Type"; value = "application/json; charset=utf-8" }
         ];
 
-        // Add Authorization header if access token is provided
-        let headers = switch (accessToken) {
-            case (?token) {
-                Array.concat(baseHeaders, [{ name = "Authorization"; value = "Bearer " # token }]);
+        // Build authentication headers based on auth type
+        let authHeaders = switch (config.auth) {
+            case (?#bearer(token)) {
+                [{ name = "Authorization"; value = "Bearer " # token }]
             };
-            case null { baseHeaders };
+            case (?#apiKey(key)) {
+                // API key goes in query parameter, not header
+                []
+            };
+            case (?#basicAuth({user; password})) {
+                let credentials = user # ":" # password;
+                let credentialsBytes = Blob.toArray(Text.encodeUtf8(credentials));
+                let encoded = base64Encode(credentialsBytes);
+                [{ name = "Authorization"; value = "Basic " # encoded }]
+            };
+            case null [];
         };
+
+        let headers = Array.flatten<http_header>([
+            baseHeaders,
+            authHeaders
+        ]);
 
         let request : http_request_args = { config with
             url;
@@ -613,21 +727,41 @@ module {
     /// Get User's Saved Audiobooks 
     /// Get a list of the audiobooks saved in the current Spotify user's 'Your Music' library. 
     public func getUsersSavedAudiobooks(config : Config__, limit : Nat, offset : Int) : async* PagingSimplifiedAudiobookObject {
-        let {baseUrl; accessToken; cycles} = config;
-        let url = baseUrl # "/me/audiobooks"
+        let {baseUrl; cycles} = config;
+        let baseUrl__ = baseUrl # "/me/audiobooks"
             # "?" # "limit=" # Int.toText(limit) # "&" # "offset=" # Int.toText(offset);
+
+        // Add API key as query parameter if using apiKey auth
+        let url = switch (config.auth) {
+            case _ baseUrl__;
+        };
 
         let baseHeaders = [
             { name = "Content-Type"; value = "application/json; charset=utf-8" }
         ];
 
-        // Add Authorization header if access token is provided
-        let headers = switch (accessToken) {
-            case (?token) {
-                Array.concat(baseHeaders, [{ name = "Authorization"; value = "Bearer " # token }]);
+        // Build authentication headers based on auth type
+        let authHeaders = switch (config.auth) {
+            case (?#bearer(token)) {
+                [{ name = "Authorization"; value = "Bearer " # token }]
             };
-            case null { baseHeaders };
+            case (?#apiKey(key)) {
+                // API key goes in query parameter, not header
+                []
+            };
+            case (?#basicAuth({user; password})) {
+                let credentials = user # ":" # password;
+                let credentialsBytes = Blob.toArray(Text.encodeUtf8(credentials));
+                let encoded = base64Encode(credentialsBytes);
+                [{ name = "Authorization"; value = "Basic " # encoded }]
+            };
+            case null [];
         };
+
+        let headers = Array.flatten<http_header>([
+            baseHeaders,
+            authHeaders
+        ]);
 
         let request : http_request_args = { config with
             url;
@@ -740,21 +874,41 @@ module {
     /// Remove User's Saved Audiobooks 
     /// Remove one or more audiobooks from the Spotify user's library. 
     public func removeAudiobooksUser(config : Config__, ids : Text) : async* () {
-        let {baseUrl; accessToken; cycles} = config;
-        let url = baseUrl # "/me/audiobooks"
+        let {baseUrl; cycles} = config;
+        let baseUrl__ = baseUrl # "/me/audiobooks"
             # "?" # "ids=" # ids;
+
+        // Add API key as query parameter if using apiKey auth
+        let url = switch (config.auth) {
+            case _ baseUrl__;
+        };
 
         let baseHeaders = [
             { name = "Content-Type"; value = "application/json; charset=utf-8" }
         ];
 
-        // Add Authorization header if access token is provided
-        let headers = switch (accessToken) {
-            case (?token) {
-                Array.concat(baseHeaders, [{ name = "Authorization"; value = "Bearer " # token }]);
+        // Build authentication headers based on auth type
+        let authHeaders = switch (config.auth) {
+            case (?#bearer(token)) {
+                [{ name = "Authorization"; value = "Bearer " # token }]
             };
-            case null { baseHeaders };
+            case (?#apiKey(key)) {
+                // API key goes in query parameter, not header
+                []
+            };
+            case (?#basicAuth({user; password})) {
+                let credentials = user # ":" # password;
+                let credentialsBytes = Blob.toArray(Text.encodeUtf8(credentials));
+                let encoded = base64Encode(credentialsBytes);
+                [{ name = "Authorization"; value = "Basic " # encoded }]
+            };
+            case null [];
         };
+
+        let headers = Array.flatten<http_header>([
+            baseHeaders,
+            authHeaders
+        ]);
 
         let request : http_request_args = { config with
             url;
@@ -771,21 +925,41 @@ module {
     /// Save Audiobooks for Current User 
     /// Save one or more audiobooks to the current Spotify user's library. 
     public func saveAudiobooksUser(config : Config__, ids : Text) : async* () {
-        let {baseUrl; accessToken; cycles} = config;
-        let url = baseUrl # "/me/audiobooks"
+        let {baseUrl; cycles} = config;
+        let baseUrl__ = baseUrl # "/me/audiobooks"
             # "?" # "ids=" # ids;
+
+        // Add API key as query parameter if using apiKey auth
+        let url = switch (config.auth) {
+            case _ baseUrl__;
+        };
 
         let baseHeaders = [
             { name = "Content-Type"; value = "application/json; charset=utf-8" }
         ];
 
-        // Add Authorization header if access token is provided
-        let headers = switch (accessToken) {
-            case (?token) {
-                Array.concat(baseHeaders, [{ name = "Authorization"; value = "Bearer " # token }]);
+        // Build authentication headers based on auth type
+        let authHeaders = switch (config.auth) {
+            case (?#bearer(token)) {
+                [{ name = "Authorization"; value = "Bearer " # token }]
             };
-            case null { baseHeaders };
+            case (?#apiKey(key)) {
+                // API key goes in query parameter, not header
+                []
+            };
+            case (?#basicAuth({user; password})) {
+                let credentials = user # ":" # password;
+                let credentialsBytes = Blob.toArray(Text.encodeUtf8(credentials));
+                let encoded = base64Encode(credentialsBytes);
+                [{ name = "Authorization"; value = "Basic " # encoded }]
+            };
+            case null [];
         };
+
+        let headers = Array.flatten<http_header>([
+            baseHeaders,
+            authHeaders
+        ]);
 
         let request : http_request_args = { config with
             url;
