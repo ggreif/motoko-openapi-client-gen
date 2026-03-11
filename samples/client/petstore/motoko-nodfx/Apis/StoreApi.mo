@@ -8,7 +8,7 @@ import Error "mo:core/Error";
 import Base64 "mo:core/Base64";
 import { JSON } "mo:serde";
 import { type Order; JSON = Order } "../Models/Order";
-import { type Map } "mo:core/pure/Map";
+import { type Map; fromIter } "mo:core/pure/Map";
 
 module {
     // Management Canister interface for HTTP outcalls
@@ -175,14 +175,9 @@ module {
                 case (#ok(blob)) blob;
                 case (#err(msg)) throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to parse JSON: " # msg);
             }) |>
-            from_candid(_) : ?Map<Text, Int>.JSON |>
+            from_candid(_) : ?[(Text, Int)] |>
             (switch (_) {
-                case (?jsonValue) {
-                    switch (Map<Text, Int>.fromJSON(jsonValue)) {
-                        case (?value) value;
-                        case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to convert response to Map<Text, Int>");
-                    }
-                };
+                case (?pairs) fromIter<Text, Int>(pairs.values(), Text.compare);
                 case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response");
             })
         } else {

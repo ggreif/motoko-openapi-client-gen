@@ -1066,6 +1066,15 @@ public class MotokoClientCodegen extends DefaultCodegen implements CodegenConfig
                     op.vendorExtensions.put("x-return-is-primitive", isPrimitive);
                 }
 
+                // Mark operations with map return types for special handling in template
+                if (op.returnContainer != null && op.returnContainer.equals("map")) {
+                    op.vendorExtensions.put("x-return-is-map", true);
+                    if (op.returnBaseType != null) {
+                        op.vendorExtensions.put("x-return-map-value-type", op.returnBaseType);
+                    }
+                    needsMapImport = true;
+                }
+
                 // Check if return type uses Map
                 if (op.returnType != null && op.returnType.contains("Map<")) {
                     needsMapImport = true;

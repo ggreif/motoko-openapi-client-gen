@@ -17,7 +17,7 @@ import { type http_request_args; type http_request_result; type http_header } "i
 import Mgnt__ = "ic:aaaaa-aa";
 {{/useDfx}}
 {{#imports}}
-{{#isMap}}import { type Map } "mo:core/pure/Map";
+{{#isMap}}import { type Map; fromIter } "mo:core/pure/Map";
 {{/isMap}}{{^isMappedType}}import { type {{classname}}; JSON = {{classname}} } "../Models/{{classname}}";
 {{/isMappedType}}
 {{/imports}}
@@ -213,6 +213,14 @@ module {
             })
             {{/vendorExtensions.x-return-is-primitive}}
             {{^vendorExtensions.x-return-is-primitive}}
+            {{#vendorExtensions.x-return-is-map}}
+            from_candid(_) : ?[(Text, {{{vendorExtensions.x-return-map-value-type}}})] |>
+            (switch (_) {
+                case (?pairs) fromIter<Text, {{{vendorExtensions.x-return-map-value-type}}}>(pairs.values(), Text.compare);
+                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response");
+            })
+            {{/vendorExtensions.x-return-is-map}}
+            {{^vendorExtensions.x-return-is-map}}
             from_candid(_) : ?{{{returnType}}}.JSON |>
             (switch (_) {
                 case (?jsonValue) {
@@ -223,6 +231,7 @@ module {
                 };
                 case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response");
             })
+            {{/vendorExtensions.x-return-is-map}}
             {{/vendorExtensions.x-return-is-primitive}}
             {{/vendorExtensions.x-return-is-array}}
         } else {
