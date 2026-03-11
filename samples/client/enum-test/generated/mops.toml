@@ -7,7 +7,7 @@ version = "1.0.0"
 description = "Generated Motoko client for Enum Test API"
 
 [dependencies]
-core = "https://github.com/caffeinelabs/motoko-core#1d319fa0339fad6205b85a7aca164749d40cd511"
+core = "https://github.com/caffeinelabs/motoko-core#refs/pull/468/head"
 # NOTE: github.com/ggreif/* are temporary forks used during motoko-core transition.
 # Replace with official published versions when upstreamed:
 #   serde = "3.4.0" (or latest from github.com/NatLabs/serde)
@@ -16,7 +16,7 @@ serde = "https://github.com/ggreif/serde#f92971751842d7470f3fb2df607b93418d2e13f
 "cbor@4.1.0" = "4.1.0"
 xtended-numbers = "2.3.0"
 "itertools@0.2.2" = "0.2.2" # because for ByteUtils
-"byte-utils@0.1.2" = "https://github.com/ggreif/ByteUtils#fc522a0ba56764b76b866e29d3cbeeb3ea7f0060" # because for ByteUtils
+"byte-utils@0.1.2" = "https://github.com/ggreif/ByteUtils#main" # because for ByteUtils
 "base@0.7.3" = "0.14.13" # because for ByteUtils
 "base@0.14.13" = "0.14.13" # because for ByteUtils
 buffer = "0.1.0" # because for ByteUtils
