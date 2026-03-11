@@ -7,7 +7,7 @@ version = "1.0.0"
 description = "Generated Motoko client for OpenAPI Petstore"
 
 [dependencies]
-core = "2.0.0"
+core = "https://github.com/caffeinelabs/motoko-core#1d319fa0339fad6205b85a7aca164749d40cd511"
 # NOTE: github.com/ggreif/* are temporary forks used during motoko-core transition.
 # Replace with official published versions when upstreamed:
 #   serde = "3.4.0" (or latest from github.com/NatLabs/serde)

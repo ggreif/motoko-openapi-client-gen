@@ -2,12 +2,10 @@
 
 import Text "mo:core/Text";
 import Int "mo:core/Int";
-import Nat8 "mo:core/Nat8";
-import Nat32 "mo:core/Nat32";
 import Blob "mo:core/Blob";
 import Array "mo:core/Array";
-import Iter "mo:core/Iter";
 import Error "mo:core/Error";
+import Base64 "mo:core/Base64";
 import { JSON } "mo:serde";
 import { type HttpHeader; JSON = HttpHeader } "../Models/HttpHeader";
 import { type MixedOneOf; JSON = MixedOneOf } "../Models/MixedOneOf";
@@ -60,29 +58,6 @@ module {
 
     let http_request = (actor "aaaaa-aa" : actor { http_request : (http_request_args) -> async http_request_result }).http_request;
 
-    // Base64 encoding for Basic Auth
-    func base64Encode(bytes : [Nat8]) : Text {
-        let base64Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-        let base64CharsArray = Iter.toArray(base64Chars.chars());
-        var result = "";
-        var i = 0;
-        while (i < bytes.size()) {
-            let b1 = bytes[i];
-            let b2 : Nat8 = if (i + 1 < bytes.size()) bytes[i + 1] else 0;
-            let b3 : Nat8 = if (i + 2 < bytes.size()) bytes[i + 2] else 0;
-
-            let n = (Nat32.fromNat(Nat8.toNat(b1)) << 16) | (Nat32.fromNat(Nat8.toNat(b2)) << 8) | Nat32.fromNat(Nat8.toNat(b3));
-
-            let c1 = Text.fromChar(base64CharsArray[Nat32.toNat((n >> 18) & 0x3F)]);
-            let c2 = Text.fromChar(base64CharsArray[Nat32.toNat((n >> 12) & 0x3F)]);
-            let c3 = if (i + 1 < bytes.size()) Text.fromChar(base64CharsArray[Nat32.toNat((n >> 6) & 0x3F)]) else "=";
-            let c4 = if (i + 2 < bytes.size()) Text.fromChar(base64CharsArray[Nat32.toNat(n & 0x3F)]) else "=";
-
-            result #= c1 # c2 # c3 # c4;
-            i += 3;
-        };
-        result
-    };
 
     public type Auth__ = {
         #bearer : Text;
@@ -127,9 +102,7 @@ module {
                 []
             };
             case (?#basicAuth({user; password})) {
-                let credentials = user # ":" # password;
-                let credentialsBytes = Blob.toArray(Text.encodeUtf8(credentials));
-                let encoded = base64Encode(credentialsBytes);
+                let encoded = Base64.encode(Text.encodeUtf8(user # ":" # password));
                 [{ name = "Authorization"; value = "Basic " # encoded }]
             };
             case null [];
@@ -209,9 +182,7 @@ module {
                 []
             };
             case (?#basicAuth({user; password})) {
-                let credentials = user # ":" # password;
-                let credentialsBytes = Blob.toArray(Text.encodeUtf8(credentials));
-                let encoded = base64Encode(credentialsBytes);
+                let encoded = Base64.encode(Text.encodeUtf8(user # ":" # password));
                 [{ name = "Authorization"; value = "Basic " # encoded }]
             };
             case null [];
@@ -296,9 +267,7 @@ module {
                 []
             };
             case (?#basicAuth({user; password})) {
-                let credentials = user # ":" # password;
-                let credentialsBytes = Blob.toArray(Text.encodeUtf8(credentials));
-                let encoded = base64Encode(credentialsBytes);
+                let encoded = Base64.encode(Text.encodeUtf8(user # ":" # password));
                 [{ name = "Authorization"; value = "Basic " # encoded }]
             };
             case null [];
@@ -384,9 +353,7 @@ module {
                 []
             };
             case (?#basicAuth({user; password})) {
-                let credentials = user # ":" # password;
-                let credentialsBytes = Blob.toArray(Text.encodeUtf8(credentials));
-                let encoded = base64Encode(credentialsBytes);
+                let encoded = Base64.encode(Text.encodeUtf8(user # ":" # password));
                 [{ name = "Authorization"; value = "Basic " # encoded }]
             };
             case null [];
@@ -466,9 +433,7 @@ module {
                 []
             };
             case (?#basicAuth({user; password})) {
-                let credentials = user # ":" # password;
-                let credentialsBytes = Blob.toArray(Text.encodeUtf8(credentials));
-                let encoded = base64Encode(credentialsBytes);
+                let encoded = Base64.encode(Text.encodeUtf8(user # ":" # password));
                 [{ name = "Authorization"; value = "Basic " # encoded }]
             };
             case null [];
@@ -553,9 +518,7 @@ module {
                 []
             };
             case (?#basicAuth({user; password})) {
-                let credentials = user # ":" # password;
-                let credentialsBytes = Blob.toArray(Text.encodeUtf8(credentials));
-                let encoded = base64Encode(credentialsBytes);
+                let encoded = Base64.encode(Text.encodeUtf8(user # ":" # password));
                 [{ name = "Authorization"; value = "Basic " # encoded }]
             };
             case null [];
@@ -640,9 +603,7 @@ module {
                 []
             };
             case (?#basicAuth({user; password})) {
-                let credentials = user # ":" # password;
-                let credentialsBytes = Blob.toArray(Text.encodeUtf8(credentials));
-                let encoded = base64Encode(credentialsBytes);
+                let encoded = Base64.encode(Text.encodeUtf8(user # ":" # password));
                 [{ name = "Authorization"; value = "Basic " # encoded }]
             };
             case null [];
@@ -727,9 +688,7 @@ module {
                 []
             };
             case (?#basicAuth({user; password})) {
-                let credentials = user # ":" # password;
-                let credentialsBytes = Blob.toArray(Text.encodeUtf8(credentials));
-                let encoded = base64Encode(credentialsBytes);
+                let encoded = Base64.encode(Text.encodeUtf8(user # ":" # password));
                 [{ name = "Authorization"; value = "Basic " # encoded }]
             };
             case null [];
