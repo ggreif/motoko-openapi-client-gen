@@ -6,7 +6,7 @@ import Blob "mo:core/Blob";
 import Array "mo:core/Array";
 import Error "mo:core/Error";
 import Base64 "mo:core/Base64";
-import { JSON } "mo:serde";
+import { JSON } "mo:serde-core";
 import { type EpisodeObject; JSON = EpisodeObject } "../Models/EpisodeObject";
 import { type GetAnAlbum401Response; JSON = GetAnAlbum401Response } "../Models/GetAnAlbum401Response";
 import { type GetMultipleEpisodes200Response; JSON = GetMultipleEpisodes200Response } "../Models/GetMultipleEpisodes200Response";

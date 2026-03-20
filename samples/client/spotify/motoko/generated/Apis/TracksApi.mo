@@ -6,7 +6,7 @@ import Blob "mo:core/Blob";
 import Array "mo:core/Array";
 import Error "mo:core/Error";
 import Base64 "mo:core/Base64";
-import { JSON } "mo:serde";
+import { JSON } "mo:serde-core";
 import { type AddTracksToPlaylistRequest; JSON = AddTracksToPlaylistRequest } "../Models/AddTracksToPlaylistRequest";
 import { type AudioAnalysisObject; JSON = AudioAnalysisObject } "../Models/AudioAnalysisObject";
 import { type AudioFeaturesObject; JSON = AudioFeaturesObject } "../Models/AudioFeaturesObject";

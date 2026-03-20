@@ -6,7 +6,7 @@ import Blob "mo:core/Blob";
 import Array "mo:core/Array";
 import Error "mo:core/Error";
 import Base64 "mo:core/Base64";
-import { JSON } "mo:serde";
+import { JSON } "mo:serde-core";
 import { type ChangePlaylistDetailsRequest; JSON = ChangePlaylistDetailsRequest } "../Models/ChangePlaylistDetailsRequest";
 import { type CreatePlaylistRequest; JSON = CreatePlaylistRequest } "../Models/CreatePlaylistRequest";
 import { type FollowArtistsUsersRequest; JSON = FollowArtistsUsersRequest } "../Models/FollowArtistsUsersRequest";

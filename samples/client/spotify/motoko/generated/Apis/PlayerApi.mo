@@ -6,7 +6,7 @@ import Blob "mo:core/Blob";
 import Array "mo:core/Array";
 import Error "mo:core/Error";
 import Base64 "mo:core/Base64";
-import { JSON } "mo:serde";
+import { JSON } "mo:serde-core";
 import { type CurrentlyPlayingContextObject; JSON = CurrentlyPlayingContextObject } "../Models/CurrentlyPlayingContextObject";
 import { type CursorPagingPlayHistoryObject; JSON = CursorPagingPlayHistoryObject } "../Models/CursorPagingPlayHistoryObject";
 import { type GetAUsersAvailableDevices200Response; JSON = GetAUsersAvailableDevices200Response } "../Models/GetAUsersAvailableDevices200Response";
