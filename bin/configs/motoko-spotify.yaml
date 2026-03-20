@@ -7,4 +7,4 @@ artifactVersion: 0.1.0
 additionalProperties:
   hideGenerationTimestamp: "true"
   useDfx: false
-  artifactRepoUrl: "https://github.com/ggreif/openapi-generator/tree/master/samples/client/spotify/motoko/generated"
+  artifactRepoUrl: "https://github.com/caffeinelabs/spotify-client"
