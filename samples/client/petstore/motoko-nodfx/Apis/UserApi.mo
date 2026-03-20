@@ -21,11 +21,8 @@ module {
         #get;
         #head;
         #post;
-        // TODO: IC HTTP outcalls currently only support GET, HEAD, and POST.
-        //   PUT and DELETE methods are not yet supported by the management canister.
-        //   Once support is added, uncomment these:
-        // #put;
-        // #delete;
+        #put;    // Non-replicated only (is_replicated forced to ?false in generated code)
+        #delete; // Non-replicated only (is_replicated forced to ?false in generated code)
     };
 
     type http_request_args = {

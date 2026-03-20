@@ -28,9 +28,9 @@ module {
         #get;
         #head;
         #post;
-        // TODO: IC HTTP outcalls currently only support GET, HEAD, and POST.
-        //   PUT and DELETE methods are not yet supported by the management canister.
-        //   Once support is added, uncomment these:
+        // TODO: PUT and DELETE are now supported by the management canister in
+        //   non-replicated mode, but dfx doesn't expose these methods yet.
+        //   Uncomment once dfx support lands:
         // #put;
         // #delete;
     };
@@ -50,11 +50,8 @@ module {
         #get;
         #head;
         #post;
-        // TODO: IC HTTP outcalls currently only support GET, HEAD, and POST.
-        //   PUT and DELETE methods are not yet supported by the management canister.
-        //   Once support is added, uncomment these:
-        // #put;
-        // #delete;
+        #put;    // Non-replicated only (is_replicated forced to ?false in generated code)
+        #delete; // Non-replicated only (is_replicated forced to ?false in generated code)
     };
 
     type http_request_args = {
@@ -159,7 +156,9 @@ module {
             url;
             method = #{{#lambda.lowercase}}{{httpMethod}}{{/lambda.lowercase}};
             headers;
-            body = {{#bodyParam}}do ? {
+            {{#isPut}}is_replicated = ?false; // PUT requires non-replicated mode on IC
+            {{/isPut}}{{#isDelete}}is_replicated = ?false; // DELETE requires non-replicated mode on IC
+            {{/isDelete}}body = {{#bodyParam}}do ? {
                 let jsonValue = {{#vendorExtensions.x-body-is-array}}{{#vendorExtensions.x-body-array-element-is-primitive}}{{paramName}}{{/vendorExtensions.x-body-array-element-is-primitive}}{{^vendorExtensions.x-body-array-element-is-primitive}}Array.map<{{{vendorExtensions.x-body-base-type}}}, {{{vendorExtensions.x-body-base-type}}}.JSON>({{paramName}}, {{{vendorExtensions.x-body-base-type}}}.toJSON){{/vendorExtensions.x-body-array-element-is-primitive}}{{/vendorExtensions.x-body-is-array}}{{^vendorExtensions.x-body-is-array}}{{#vendorExtensions.x-body-is-primitive}}{{paramName}}{{/vendorExtensions.x-body-is-primitive}}{{^vendorExtensions.x-body-is-primitive}}{{dataType}}.toJSON({{paramName}}){{/vendorExtensions.x-body-is-primitive}}{{/vendorExtensions.x-body-is-array}};
                 let candidBlob = to_candid(jsonValue);
                 let #ok(jsonText) = JSON.toText(candidBlob, [], null) else throw Error.reject("Failed to serialize to JSON");
