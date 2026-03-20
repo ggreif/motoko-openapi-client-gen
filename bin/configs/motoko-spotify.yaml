@@ -3,7 +3,8 @@ outputDir: samples/client/spotify/motoko/generated
 inputSpec: samples/client/spotify/motoko/specs/spotify-openapi.yml
 templateDir: modules/openapi-generator/src/main/resources/motoko
 artifactId: spotify-client
-artifactVersion: 1.0.0
+artifactVersion: 0.1.0
 additionalProperties:
   hideGenerationTimestamp: "true"
   useDfx: false
+  artifactRepoUrl: "https://github.com/ggreif/openapi-generator/tree/master/samples/client/spotify/motoko/generated"
