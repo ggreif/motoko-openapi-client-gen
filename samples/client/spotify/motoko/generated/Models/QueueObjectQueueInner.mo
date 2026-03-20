@@ -24,6 +24,7 @@ import { type SimplifiedShowObject; JSON = SimplifiedShowObject } "./SimplifiedS
 import { type TrackObject; JSON = TrackObject } "./TrackObject";
 
 // QueueObjectQueueInner.mo
+import Runtime "mo:core/Runtime";
 
 module {
     // User-facing type: discriminated union (oneOf)
@@ -37,8 +38,8 @@ module {
         // Convert oneOf variant to Text for URL parameters
         public func toText(value : QueueObjectQueueInner) : Text =
             switch (value) {
-                case (#TrackObject(v)) debug_show(v);
-                case (#EpisodeObject(v)) debug_show(v);
+                case (#TrackObject(v)) Runtime.unreachable();
+                case (#EpisodeObject(v)) Runtime.unreachable();
             };
 
         // JSON-facing Motoko type: mirrors JSON structure

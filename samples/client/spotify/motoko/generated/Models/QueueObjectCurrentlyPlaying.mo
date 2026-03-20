@@ -25,6 +25,7 @@ import { type TrackObject; JSON = TrackObject } "./TrackObject";
 
 // QueueObjectCurrentlyPlaying.mo
 /// The currently playing track or episode. Can be `null`.
+import Runtime "mo:core/Runtime";
 
 module {
     // User-facing type: discriminated union (oneOf)
@@ -38,8 +39,8 @@ module {
         // Convert oneOf variant to Text for URL parameters
         public func toText(value : QueueObjectCurrentlyPlaying) : Text =
             switch (value) {
-                case (#TrackObject(v)) debug_show(v);
-                case (#EpisodeObject(v)) debug_show(v);
+                case (#TrackObject(v)) Runtime.unreachable();
+                case (#EpisodeObject(v)) Runtime.unreachable();
             };
 
         // JSON-facing Motoko type: mirrors JSON structure

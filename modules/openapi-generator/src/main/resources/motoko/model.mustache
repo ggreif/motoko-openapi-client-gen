@@ -64,6 +64,7 @@ module {
 {{#description}}
 /// {{{description}}}
 {{/description}}
+import Runtime "mo:core/Runtime";
 
 module {
     // User-facing type: discriminated union (oneOf)
@@ -79,7 +80,7 @@ module {
         public func toText(value : {{classname}}) : Text =
             switch (value) {
 {{#vendorExtensions.oneOfVariants}}
-                case ({{#hasType}}#{{name}}(v){{/hasType}}{{^hasType}}#{{name}}{{/hasType}}) {{#hasType}}{{#isNumericType}}Int.toText(v){{/isNumericType}}{{#isEnumType}}{{dataType}}.toJSON(v){{/isEnumType}}{{#isObjectType}}debug_show(v){{/isObjectType}}{{/hasType}}{{^hasType}}"{{enumValue}}"{{/hasType}};
+                case ({{#hasType}}#{{name}}(v){{/hasType}}{{^hasType}}#{{name}}{{/hasType}}) {{#hasType}}{{#isNumericType}}Int.toText(v){{/isNumericType}}{{#isEnumType}}{{dataType}}.toJSON(v){{/isEnumType}}{{#isObjectType}}Runtime.unreachable(){{/isObjectType}}{{/hasType}}{{^hasType}}"{{enumValue}}"{{/hasType}};
 {{/vendorExtensions.oneOfVariants}}
             };
 

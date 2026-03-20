@@ -20,6 +20,7 @@ import { type TrackObjectType; JSON = TrackObjectType } "./TrackObjectType";
 import { type TrackRestrictionObject; JSON = TrackRestrictionObject } "./TrackRestrictionObject";
 
 // GetUsersTopArtistsAndTracks200ResponseAllOfItemsInner.mo
+import Runtime "mo:core/Runtime";
 
 module {
     // User-facing type: discriminated union (oneOf)
@@ -33,8 +34,8 @@ module {
         // Convert oneOf variant to Text for URL parameters
         public func toText(value : GetUsersTopArtistsAndTracks200ResponseAllOfItemsInner) : Text =
             switch (value) {
-                case (#ArtistObject(v)) debug_show(v);
-                case (#TrackObject(v)) debug_show(v);
+                case (#ArtistObject(v)) Runtime.unreachable();
+                case (#TrackObject(v)) Runtime.unreachable();
             };
 
         // JSON-facing Motoko type: mirrors JSON structure
