@@ -1,0 +1,2 @@
+TODO: Revisit dfx-flavoured generation for PUT/DELETE once dfx exposes these methods.
+Uncomment #put and #delete in the useDfx section of api.mustache (see plan in .claude/plans/put-delete.md).
