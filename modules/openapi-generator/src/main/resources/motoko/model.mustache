@@ -50,7 +50,7 @@ module {
             switch (json) {
 {{#allowableValues}}
 {{#enumVars}}
-                case {{#isString}}"{{value}}"{{/isString}}{{^isString}}{{value}}{{/isString}} ?#{{name}};
+                case {{#isString}}"{{value}}"{{/isString}}{{^isString}}({{value}}){{/isString}} ?#{{name}};
 {{/enumVars}}
 {{/allowableValues}}
                 case _ null;

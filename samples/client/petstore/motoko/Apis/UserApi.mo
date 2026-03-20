@@ -18,9 +18,9 @@ module {
         #get;
         #head;
         #post;
-        // TODO: IC HTTP outcalls currently only support GET, HEAD, and POST.
-        //   PUT and DELETE methods are not yet supported by the management canister.
-        //   Once support is added, uncomment these:
+        // TODO: PUT and DELETE are now supported by the management canister in
+        //   non-replicated mode, but dfx doesn't expose these methods yet.
+        //   Uncomment once dfx support lands:
         // #put;
         // #delete;
     };

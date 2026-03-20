@@ -213,7 +213,13 @@ public class MotokoClientCodegen extends DefaultCodegen implements CodegenConfig
         // Lowercase for Motoko variant convention (idiomatic, though not required)
         String enumVarName = name.toLowerCase(Locale.ROOT);
 
-        // Replace special characters with underscores
+        // Handle leading minus sign (negative numbers) before generic replacement,
+        // so -1 becomes "minus_1" rather than colliding with 1 -> "_1"
+        if (enumVarName.startsWith("-")) {
+            enumVarName = "minus_" + enumVarName.substring(1);
+        }
+
+        // Replace remaining special characters with underscores
         // Motoko identifiers: [a-zA-Z_][a-zA-Z0-9_]*
         enumVarName = enumVarName.replaceAll("[^a-zA-Z0-9_]", "_");
 

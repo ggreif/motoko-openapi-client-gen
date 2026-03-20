@@ -1,12 +1,12 @@
 
 // SectionObjectMode.mo
 /// Indicates the modality (major or minor) of a section, the type of scale from which its melodic content is derived. This field will contain a 0 for \"minor\", a 1 for \"major\", or a -1 for no result. Note that the major key (e.g. C major) could more likely be confused with the minor key at 3 semitones lower (e.g. A minor) as both keys carry the same pitches.
-/// Enum values: #_1, #_0_, #_1_
+/// Enum values: #minus_1, #_0_, #_1_
 
 module {
     // User-facing type: type-safe variants for application code
     public type SectionObjectMode = {
-        #_1;
+        #minus_1;
         #_0_;
         #_1_;
     };
@@ -20,7 +20,7 @@ module {
         // Convert User-facing type to JSON-facing Motoko type
         public func toJSON(value : SectionObjectMode) : JSON =
             switch (value) {
-                case (#_1) -1;
+                case (#minus_1) -1;
                 case (#_0_) 0;
                 case (#_1_) 1;
             };
@@ -28,9 +28,9 @@ module {
         // Convert JSON-facing Motoko type to User-facing type
         public func fromJSON(json : JSON) : ?SectionObjectMode =
             switch (json) {
-                case -1 ?#_1;
-                case 0 ?#_0_;
-                case 1 ?#_1_;
+                case (-1) ?#minus_1;
+                case (0) ?#_0_;
+                case (1) ?#_1_;
                 case _ null;
             };
     }
