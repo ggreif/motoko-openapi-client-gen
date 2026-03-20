@@ -10,7 +10,7 @@ license = "Apache-2.0"
 files = ["Apis/**/*.mo", "Models/**/*.mo"]
 
 [dependencies]
-core = "2.3.0"
+core = "2.3.1"
 serde-core = "0.0.1"
 "cbor@4.1.0" = "4.1.0"
 "itertools@0.2.2" = "0.2.2" # because for serde-core
