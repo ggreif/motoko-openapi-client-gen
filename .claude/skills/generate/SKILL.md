@@ -17,7 +17,7 @@ This skill helps generate Motoko client code from OpenAPI specifications and ver
 
 1. **Build the generator** (if needed):
    ```bash
-   mvn clean install -DskipTests
+   mvn install -DskipTests -Dmaven.test.skip=true -Dforbiddenapis.skip=true -pl modules/openapi-generator-cli -am -q
    ```
 
    **IMPORTANT**: Always rebuild after modifying templates (`.mustache` files) or generator code. A stale `openapi-generator-cli.jar` in `modules/openapi-generator-cli/target/` will cause generated code to not reflect your changes.
