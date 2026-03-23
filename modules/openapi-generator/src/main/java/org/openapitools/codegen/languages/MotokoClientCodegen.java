@@ -46,6 +46,7 @@ public class MotokoClientCodegen extends DefaultCodegen implements CodegenConfig
         modelPackage = "src/Models";
         supportingFiles.add(new SupportingFile("README.mustache", "", "README.md"));
         supportingFiles.add(new SupportingFile("mops.toml.mustache", "", "mops.toml"));
+        supportingFiles.add(new SupportingFile("Config.mustache", "src", "Config.mo"));
 
         // Motoko language-specific primitives (don't need imports)
         // All builtin types are listed to prevent naming clashes with OpenAPI models

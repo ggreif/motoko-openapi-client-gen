@@ -21,6 +21,7 @@ import Mgnt__ = "ic:aaaaa-aa";
 {{/isMap}}{{^isMappedType}}import { type {{classname}}; JSON = {{classname}} } "../Models/{{classname}}";
 {{/isMappedType}}
 {{/imports}}
+import { type Config } "../Config";
 
 module {
 {{#useDfx}}
@@ -78,24 +79,6 @@ module {
 {{/useDfx}}
 
 {{#operations}}
-    public type Auth__ = {
-        #bearer : Text;
-        #apiKey : Text;
-        #basicAuth : { user : Text; password : Text };
-    };
-
-    public type Config__ = {
-        baseUrl : Text;
-        auth : ?Auth__;
-        max_response_bytes : ?Nat64;
-        transform : ?{
-            function : shared query ({ response : http_request_result; context : Blob }) -> async http_request_result;
-            context : Blob;
-        };
-        is_replicated : ?Bool;
-        cycles : Nat;
-    };
-
 {{#operation}}
     {{#summary}}
     /// {{{summary}}}
@@ -103,7 +86,7 @@ module {
     {{#notes}}
     /// {{{notes}}}
     {{/notes}}
-    public func {{operationId}}(config : Config__{{#allParams}}, {{paramName}} : {{#isNullable}}?{{/isNullable}}{{dataType}}{{/allParams}}) : async* {{#returnType}}{{{returnType}}}{{/returnType}}{{^returnType}}(){{/returnType}} {
+    public func {{operationId}}(config : Config{{#allParams}}, {{paramName}} : {{#isNullable}}?{{/isNullable}}{{dataType}}{{/allParams}}) : async* {{#returnType}}{{{returnType}}}{{/returnType}}{{^returnType}}(){{/returnType}} {
         let {baseUrl; cycles} = config;
         let baseUrl__ = baseUrl # "{{path}}"{{#pathParams}}
             |> Text.replace(_, #text "{{=<% %>=}}{<%baseName%>}<%={{ }}=%>", {{#vendorExtensions.x-is-oneof-type}}{{{dataType}}}.toText({{paramName}}){{/vendorExtensions.x-is-oneof-type}}{{^vendorExtensions.x-is-oneof-type}}{{#isEnum}}{{{dataType}}}.toJSON({{paramName}}){{/isEnum}}{{#isEnumRef}}{{{dataType}}}.toJSON({{paramName}}){{/isEnumRef}}{{^isEnum}}{{^isEnumRef}}{{#isModel}}{{{dataType}}}.toJSON({{paramName}}){{/isModel}}{{^isModel}}{{#isString}}{{paramName}}{{/isString}}{{^isString}}{{#isInteger}}Int.toText({{paramName}}){{/isInteger}}{{^isInteger}}debug_show({{paramName}}){{/isInteger}}{{/isString}}{{/isModel}}{{/isEnumRef}}{{/isEnum}}{{/vendorExtensions.x-is-oneof-type}}){{/pathParams}}{{#queryParams}}{{#-first}}
@@ -292,7 +275,7 @@ module {
 {{/operations}}
     };
 
-    public module class {{classname}}(config : Config__) {
+    public module class {{classname}}(config : Config) {
 {{#operations}}
 {{#operation}}
         {{#summary}}
