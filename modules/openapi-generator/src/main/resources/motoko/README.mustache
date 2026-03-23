@@ -50,7 +50,7 @@ Configure and call the API:
 ```motoko
 let config = {
     baseUrl = "https://api.example.com";
-    auth = null; // or ?#bearer("token"), ?#apiKey("key"), ?#basicAuth({user="u"; password="p"})
+    auth = null; // or ?#bearer "token", ?#apiKey "key", ?#basicAuth {user="u"; password="p"}
     max_response_bytes = null;
     transform = null;
     is_replicated = null;
