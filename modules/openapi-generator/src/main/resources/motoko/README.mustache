@@ -37,10 +37,27 @@ This is a Motoko module that can be used in your Internet Computer project.
 
 ## Usage
 
-Import the generated modules in your Motoko code:
+Import the generated API modules in your Motoko code:
 
 ```motoko
-import {{appName}} "path/to/generated/modules";
+import SomeApi "mo:{{artifactId}}/Apis/SomeApi";
+// or using destructuring for specific functions
+import { someFunction } "mo:{{artifactId}}/Apis/SomeApi";
+```
+
+Configure and call the API:
+
+```motoko
+let config : SomeApi.Config__ = {
+    baseUrl = "https://api.example.com";
+    auth = null; // or ?#bearer("token"), ?#apiKey("key"), ?#basicAuth({user="u"; password="p"})
+    max_response_bytes = null;
+    transform = null;
+    is_replicated = null;
+    cycles = 30_000_000_000;
+};
+
+let result = await* SomeApi.someFunction(config, ...);
 ```
 
 ### HTTP Outcalls and Cycles

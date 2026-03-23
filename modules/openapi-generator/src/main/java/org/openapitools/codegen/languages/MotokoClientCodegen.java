@@ -42,8 +42,8 @@ public class MotokoClientCodegen extends DefaultCodegen implements CodegenConfig
         modelTemplateFiles.put("model.mustache", ".mo");
         apiTemplateFiles.put("api.mustache", ".mo");
         embeddedTemplateDir = templateDir = "motoko";
-        apiPackage = "Apis";
-        modelPackage = "Models";
+        apiPackage = "src/Apis";
+        modelPackage = "src/Models";
         supportingFiles.add(new SupportingFile("README.mustache", "", "README.md"));
         supportingFiles.add(new SupportingFile("mops.toml.mustache", "", "mops.toml"));
 

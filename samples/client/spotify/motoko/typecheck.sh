@@ -15,7 +15,7 @@ PASSED=0
 # Change to generated directory to run moc with correct relative paths
 cd generated
 
-for file in Models/*.mo Apis/*.mo; do
+for file in src/Models/*.mo src/Apis/*.mo; do
   if [ -f "$file" ]; then
     echo "Checking $file..."
     PACKAGE_FLAGS=$(npx ic-mops sources)
