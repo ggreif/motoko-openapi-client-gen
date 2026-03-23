@@ -38,24 +38,24 @@ fi
 
 echo ""
 echo "Build testing with mops build..."
-TMPBUILD=$(mktemp -d /tmp/spotify-build-test-XXXXXX)
+TMPBUILD=$(mktemp -d /tmp/x-build-test-XXXXXX)
 GENERATED_ABS="$(pwd)/generated"
 cat > "$TMPBUILD/mops.toml" << EOF
 [toolchain]
 moc = "1.3.0"
 
 [package]
-name = "spotify-build-test"
+name = "x-build-test"
 version = "0.0.1"
 
 [dependencies]
-spotify-client = "$GENERATED_ABS"
+x-client = "$GENERATED_ABS"
 
 [canisters]
 test = "Main.mo"
 EOF
 cat > "$TMPBUILD/Main.mo" << 'EOF'
-import { getTrack } "mo:spotify-client/Apis/TracksApi";
+import { getPostsById } "mo:x-client/Apis/TweetsApi";
 persistent actor {
     public func test() : async Text { "ok" };
 }

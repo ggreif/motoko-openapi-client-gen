@@ -1,3 +1,6 @@
 [submodule "samples/client/spotify/motoko/generated"]
 	path = samples/client/spotify/motoko/generated
 	url = git@github.com:caffeinelabs/spotify-client.git
+[submodule "samples/client/x/motoko/generated"]
+	path = samples/client/x/motoko/generated
+	url = git@github.com:caffeinelabs/x-client.git

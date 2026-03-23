@@ -1,0 +1,10 @@
+generatorName: motoko
+outputDir: samples/client/x/motoko/generated
+inputSpec: samples/client/x/motoko/specs/x-openapi.json
+templateDir: modules/openapi-generator/src/main/resources/motoko
+artifactId: x-client
+artifactVersion: 0.1.0
+additionalProperties:
+  hideGenerationTimestamp: "true"
+  useDfx: false
+  artifactRepoUrl: "https://github.com/caffeinelabs/x-client"
