@@ -48,7 +48,7 @@ import { someFunction } "mo:{{artifactId}}/Apis/SomeApi";
 Configure and call the API:
 
 ```motoko
-let config : SomeApi.Config__ = {
+let config = {
     baseUrl = "https://api.example.com";
     auth = null; // or ?#bearer("token"), ?#apiKey("key"), ?#basicAuth({user="u"; password="p"})
     max_response_bytes = null;
