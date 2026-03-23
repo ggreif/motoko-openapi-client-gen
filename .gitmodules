@@ -4,3 +4,6 @@
 [submodule "samples/client/x/motoko/generated"]
 	path = samples/client/x/motoko/generated
 	url = git@github.com:caffeinelabs/x-client.git
+[submodule "samples/client/twilio/motoko/generated"]
+	path = samples/client/twilio/motoko/generated
+	url = git@github.com:caffeinelabs/twilio-client.git
