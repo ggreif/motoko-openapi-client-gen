@@ -55,7 +55,7 @@ twilio-client = "$GENERATED_ABS"
 test = "Main.mo"
 EOF
 cat > "$TMPBUILD/Main.mo" << 'EOF'
-import { listCall } "mo:twilio-client/Apis/Api20100401CallApi";
+import { fetchService } "mo:twilio-client/Apis/MessagingV1ServiceApi";
 persistent actor {
     public func test() : async Text { "ok" };
 }
