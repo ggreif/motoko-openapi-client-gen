@@ -110,3 +110,5 @@ Test demonstrates complete validation:
 - Array operations (size, indexing, element access)
 
 UPDATE (2026-03-25): Likely have a test for nested containers already (see 5760b3c4337). Verify test coverage is complete.
+
+CONFIRMED RESOLVED (2026-03-25): type-coverage spec has ArrayMatrix ([[Int]], [Map<Text,Int>], [[[Text]]]) and MapMatrix (Map<Text,Map<Text,Int>>) — all generated correctly and mops build passes.
