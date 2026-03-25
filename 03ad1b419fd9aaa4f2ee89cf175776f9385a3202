@@ -108,3 +108,5 @@ Test demonstrates complete validation:
 - Transform callback feature
 - JSON deserialization via serde
 - Array operations (size, indexing, element access)
+
+UPDATE (2026-03-25): Likely have a test for nested containers already (see 5760b3c4337). Verify test coverage is complete.
