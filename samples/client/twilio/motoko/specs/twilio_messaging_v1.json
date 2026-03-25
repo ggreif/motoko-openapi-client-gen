@@ -2590,7 +2590,7 @@
                 "examples": {
                   "create": {
                     "value": {
-                      "account_sid": "AC78e8e67fc0246521490fb9907fd0c165",
+                      "account_sid": "ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
                       "brand_registration_sid": "BN0044409f7e067e279523808d267e2d85"
                     }
                   }
@@ -2703,7 +2703,7 @@
                   "fetch": {
                     "value": {
                       "sid": "BN0044409f7e067e279523808d267e2d85",
-                      "account_sid": "AC78e8e67fc0246521490fb9907fd0c165",
+                      "account_sid": "ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
                       "customer_profile_bundle_sid": "BU3344409f7e067e279523808d267e2d85",
                       "a2p_profile_bundle_sid": "BU3344409f7e067e279523808d267e2d85",
                       "date_created": "2021-01-27T14:18:35Z",
@@ -3156,7 +3156,7 @@
                       "data": [
                         {
                           "sid": "BN0044409f7e067e279523808d267e2d85",
-                          "account_sid": "AC78e8e67fc0246521490fb9907fd0c165",
+                          "account_sid": "ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
                           "customer_profile_bundle_sid": "BU3344409f7e067e279523808d267e2d85",
                           "a2p_profile_bundle_sid": "BU3344409f7e067e279523808d267e2d85",
                           "date_created": "2021-01-27T14:18:35Z",
@@ -3200,7 +3200,7 @@
                       "data": [
                         {
                           "sid": "BN0044409f7e067e279523808d267e2d85",
-                          "account_sid": "AC78e8e67fc0246521490fb9907fd0c165",
+                          "account_sid": "ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
                           "customer_profile_bundle_sid": "BU3344409f7e067e279523808d267e2d85",
                           "a2p_profile_bundle_sid": "BU3344409f7e067e279523808d267e2d85",
                           "date_created": "2021-01-27T14:18:35Z",
@@ -3305,7 +3305,7 @@
                   "create": {
                     "value": {
                       "sid": "BN0044409f7e067e279523808d267e2d85",
-                      "account_sid": "AC78e8e67fc0246521490fb9907fd0c165",
+                      "account_sid": "ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
                       "customer_profile_bundle_sid": "BU0000009f7e067e279523808d267e2d90",
                       "a2p_profile_bundle_sid": "BU1111109f7e067e279523808d267e2d85",
                       "date_created": "2021-01-28T10:45:51Z",
@@ -3336,7 +3336,7 @@
                   "createSoleProprietorBrand": {
                     "value": {
                       "sid": "BN0044409f7e067e279523808d267e2d85",
-                      "account_sid": "AC78e8e67fc0246521490fb9907fd0c165",
+                      "account_sid": "ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
                       "customer_profile_bundle_sid": "BU0000009f7e067e279523808d267e2d90",
                       "a2p_profile_bundle_sid": "BU1111109f7e067e279523808d267e2d85",
                       "date_created": "2021-01-28T10:45:51Z",
@@ -3524,7 +3524,7 @@
                 "examples": {
                   "create": {
                     "value": {
-                      "account_sid": "AC78e8e67fc0246521490fb9907fd0c165",
+                      "account_sid": "ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
                       "brand_sid": "BN0044409f7e067e279523808d267e2d85",
                       "brand_vetting_sid": "VT12445353",
                       "vetting_provider": "campaign-verify",
@@ -3586,7 +3586,7 @@
                 "examples": {
                   "create202Response": {
                     "value": {
-                      "account_sid": "AC78e8e67fc0246521490fb9907fd0c165",
+                      "account_sid": "ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
                       "brand_sid": "BN0044409f7e067e279523808d267e2d85",
                       "brand_vetting_sid": "VT12445353",
                       "vetting_provider": "campaign-verify",
@@ -3773,7 +3773,7 @@
                       },
                       "data": [
                         {
-                          "account_sid": "AC78e8e67fc0246521490fb9907fd0c165",
+                          "account_sid": "ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
                           "brand_sid": "BN0044409f7e067e279523808d267e2d85",
                           "brand_vetting_sid": "VT12445353",
                           "vetting_provider": "campaign-verify",
@@ -3900,7 +3900,7 @@
                 "examples": {
                   "fetch": {
                     "value": {
-                      "account_sid": "AC78e8e67fc0246521490fb9907fd0c165",
+                      "account_sid": "ACXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
                       "brand_sid": "BN0044409f7e067e279523808d267e2d85",
                       "brand_vetting_sid": "VT12445353",
                       "vetting_provider": "campaign-verify",
