@@ -60,3 +60,13 @@ This real-world validation proves the Janus Types implementation and oneOf
 support work correctly with production hardware and actual API endpoints.
 
 TESTED: Works with real Yamaha MusicCast hardware (2026-03-25).
+
+RE-TESTED: 2026-03-25 — Full test sequence confirmed working again after migrating to:
+- src/ layout (Apis/ → src/Apis/, Models/ → src/Models/)
+- serde-core@0.0.1 (mops-published, replaces GitHub fork)
+- core@2.3.1 (official mops release with Base64.mo)
+- defaultConfig from generated Config.mo (hostname from spec)
+- Hostname sala-dac.fritz.box (set in OpenAPI spec server variable, now in defaultConfig)
+- deploy.sh updated with correct PATH, dfx killall, --no-wallet
+
+Result: ("SUCCESS: Test sequence completed - raised to 30%%, 10 down, 3 up, powered off")
