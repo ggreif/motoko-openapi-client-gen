@@ -58,3 +58,5 @@ Files tested:
 
 This real-world validation proves the Janus Types implementation and oneOf
 support work correctly with production hardware and actual API endpoints.
+
+TESTED: Works with real Yamaha MusicCast hardware (2026-03-25).
