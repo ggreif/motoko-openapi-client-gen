@@ -16,3 +16,5 @@ src/Models/SetTunerFreqTuningParameter.mo
 src/Models/SetVolumeVolumeParameter.mo
 src/Models/SetVolumeVolumeParameterOneOf.mo
 src/Models/SwitchTunerPresetDirParameter.mo
+src/Models/ZoneStatus.mo
+src/Models/ZoneStatusPower.mo

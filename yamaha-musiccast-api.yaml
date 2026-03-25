@@ -158,7 +158,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
+                $ref: '#/components/schemas/ZoneStatus'
 
   /{zone}/getSoundProgramList:
     get:
@@ -824,3 +824,26 @@ paths:
             application/json:
               schema:
                 type: object
+
+components:
+  schemas:
+    ZoneStatus:
+      type: object
+      properties:
+        response_code:
+          type: integer
+        power:
+          type: string
+          enum: [on, standby]
+        volume:
+          type: integer
+        max_volume:
+          type: integer
+        mute:
+          type: boolean
+        input:
+          type: string
+        sound_program:
+          type: string
+        sleep:
+          type: integer

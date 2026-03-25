@@ -19,7 +19,8 @@ persistent actor {
         "power=" # (switch (s.power) { case (?#standby) "standby"; case (?#true_) "on"; case null "?" }) #
         " volume=" # (switch (s.volume) { case (?v) Int.toText(v); case null "?" }) #
         " input=" # (switch (s.input) { case (?i) i; case null "?" }) #
-        " mute=" # (switch (s.mute) { case (?m) (if m "yes" else "no"); case null "?" })
+        " mute=" # (switch (s.mute) { case (?m) (if m "yes" else "no"); case null "?" }) #
+        " sound_program=" # (switch (s.sound_program) { case (?p) p; case null "?" })
     };
 
     /// Test sequence: power on, raise volume to 30% in 5-increments, do 10 down steps, do 3 up steps, power off

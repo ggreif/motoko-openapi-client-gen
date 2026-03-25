@@ -14,6 +14,7 @@ import Mgnt__ = "ic:aaaaa-aa";
 import { type SetInputInputParameter; JSON = SetInputInputParameter } "../Models/SetInputInputParameter";
 import { type SetInputModeParameter; JSON = SetInputModeParameter } "../Models/SetInputModeParameter";
 import { type SetVolumeVolumeParameter; JSON = SetVolumeVolumeParameter } "../Models/SetVolumeVolumeParameter";
+import { type ZoneStatus; JSON = ZoneStatus } "../Models/ZoneStatus";
 import { type Config } "../Config";
 
 module {
@@ -110,7 +111,7 @@ module {
 
     /// Get zone status
     /// Returns the current status of the specified zone
-    public func getZoneStatus(config : Config, zone : Text) : async* Any {
+    public func getZoneStatus(config : Config, zone : Text) : async* ZoneStatus {
         let {baseUrl; cycles} = config;
         let baseUrl__ = baseUrl # "/{zone}/getStatus"
             |> Text.replace(_, #text "{zone}", zone);
@@ -166,9 +167,14 @@ module {
                 case (#ok(blob)) blob;
                 case (#err(msg)) throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to parse JSON: " # msg);
             }) |>
-            from_candid(_) : ?Any |>
+            from_candid(_) : ?ZoneStatus.JSON |>
             (switch (_) {
-                case (?result) result;
+                case (?jsonValue) {
+                    switch (ZoneStatus.fromJSON(jsonValue)) {
+                        case (?value) value;
+                        case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to convert response to ZoneStatus");
+                    }
+                };
                 case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response");
             })
         } else {
@@ -674,7 +680,7 @@ module {
 
         /// Get zone status
         /// Returns the current status of the specified zone
-        public func getZoneStatus(zone : Text) : async Any {
+        public func getZoneStatus(zone : Text) : async ZoneStatus {
             await* operations__.getZoneStatus(config, zone)
         };
 
