@@ -18,3 +18,5 @@ Similar pattern to other reserved words like "Text", "Error", etc.
 Location: MotokoClientCodegen.java lines 262, 338
 
 UPDATE (2026-03-25): Likely have a test already. Verify.
+
+CONFIRMED RESOLVED (2026-03-25): type-coverage spec has a 'Map' schema. Generator renames it to 'Map_' (Map_.mo). Verified in generated output. mops build passes.
