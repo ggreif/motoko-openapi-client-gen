@@ -22,8 +22,8 @@ servers:
     description: MusicCast device endpoint
     variables:
       ipaddress:
-        default: 192.168.178.42
-        description: IP address of the MusicCast device
+        default: sala-dac.fritz.box
+        description: IP address or hostname of the MusicCast device
 
 tags:
   - name: system

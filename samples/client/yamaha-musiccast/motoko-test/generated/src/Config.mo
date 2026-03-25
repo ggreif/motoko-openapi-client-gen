@@ -26,7 +26,7 @@ module {
     /// Customize with record update syntax:
     ///   { defaultConfig with auth = ?#bearer "my-token" }
     public let defaultConfig : Config = {
-        baseUrl = "http://192.168.178.42/YamahaExtendedControl/v1";
+        baseUrl = "http://sala-dac.fritz.box/YamahaExtendedControl/v1";
         auth = null;
         max_response_bytes = null;
         transform = null;

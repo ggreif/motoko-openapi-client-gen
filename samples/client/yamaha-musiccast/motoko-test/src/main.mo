@@ -4,17 +4,11 @@ import { PowerApi } "../generated/src/Apis/PowerApi";
 import { ZoneApi } "../generated/src/Apis/ZoneApi";
 import { type SetPowerPowerParameter; JSON = SetPowerPowerParameter } "../generated/src/Models/SetPowerPowerParameter";
 import { type SetVolumeVolumeParameter; JSON = SetVolumeVolumeParameter } "../generated/src/Models/SetVolumeVolumeParameter";
+import { defaultConfig } "../generated/src/Config";
 
 persistent actor {
 
-    transient let apiConfig = {
-        baseUrl = "http://192.168.178.42/YamahaExtendedControl/v1";
-        auth = null;
-        max_response_bytes = null;
-        transform = null;
-        is_replicated = null;
-        cycles = 30_000_000_000;
-    };
+    transient let apiConfig = defaultConfig;
 
     transient let powerApi = PowerApi(apiConfig);
     transient let zoneApi = ZoneApi(apiConfig);
