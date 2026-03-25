@@ -301,3 +301,5 @@ The renameKeys-based approach initially explored proved insufficient because
 it cannot convert between value types (Text vs variant). The Janus Types
 solution achieves the same goal through pure Motoko type conversions,
 requiring no serde or compiler modifications.
+
+RESOLVED: Proper enum support implemented, including numeric enums with negatives (minus_ prefix, case (-1) parens in fromJSON). (2026-03-25)
