@@ -1,9 +1,9 @@
 import Debug "mo:core/Debug";
 import Int "mo:core/Int";
-import { PowerApi } "../generated/Apis/PowerApi";
-import { ZoneApi } "../generated/Apis/ZoneApi";
-import { type SetPowerPowerParameter; JSON = SetPowerPowerParameter } "../generated/Models/SetPowerPowerParameter";
-import { type SetVolumeVolumeParameter; JSON = SetVolumeVolumeParameter } "../generated/Models/SetVolumeVolumeParameter";
+import { PowerApi } "../generated/src/Apis/PowerApi";
+import { ZoneApi } "../generated/src/Apis/ZoneApi";
+import { type SetPowerPowerParameter; JSON = SetPowerPowerParameter } "../generated/src/Models/SetPowerPowerParameter";
+import { type SetVolumeVolumeParameter; JSON = SetVolumeVolumeParameter } "../generated/src/Models/SetVolumeVolumeParameter";
 
 persistent actor {
 

@@ -1,21 +1,17 @@
+[toolchain]
+moc = "1.3.0"
+
 [package]
 name = "yamaha-test"
 version = "1.0.0"
 description = "Test project for Yamaha MusicCast API client"
 
 [dependencies]
-core = "2.0.0"
-# NOTE: github.com/ggreif/* are temporary forks used during motoko-core transition.
-# Replace with official published versions when upstreamed:
-#   serde = "3.4.0" (or latest from github.com/NatLabs/serde)
-#   byte-utils = "0.1.2" (or latest official version)
-serde = "https://github.com/ggreif/serde#f92971751842d7470f3fb2df607b93418d2e13fd"
+core = "2.3.1"
+serde-core = "0.0.1"
 "cbor@4.1.0" = "4.1.0"
+"itertools@0.2.2" = "0.2.2" # because for serde-core
+base = "0.14.13" # because serde-core uses json.mo submodule
 xtended-numbers = "2.3.0"
-"itertools@0.2.2" = "0.2.2" # because for ByteUtils
-"byte-utils@0.1.2" = "https://github.com/ggreif/ByteUtils#fc522a0ba56764b76b866e29d3cbeeb3ea7f0060" # because for ByteUtils
-"base@0.7.3" = "0.14.13" # because for ByteUtils
-"base@0.14.13" = "0.14.13" # because for ByteUtils
-buffer = "0.1.0" # because for ByteUtils
-"xtended-numbers@2.3.0" = "2.3.0" # because for ByteUtils
+"xtended-numbers@2.3.0" = "2.3.0" # because for ByteUtils (inlined in serde-core)
 "sha2@0.1.6" = "0.1.6"
