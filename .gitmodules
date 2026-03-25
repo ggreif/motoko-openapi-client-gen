@@ -7,3 +7,6 @@
 [submodule "samples/client/twilio/motoko/generated"]
 	path = samples/client/twilio/motoko/generated
 	url = git@github.com:caffeinelabs/twilio-client.git
+[submodule "samples/client/tmdb/motoko/generated"]
+	path = samples/client/tmdb/motoko/generated
+	url = git@github.com:caffeinelabs/tmdb-client.git

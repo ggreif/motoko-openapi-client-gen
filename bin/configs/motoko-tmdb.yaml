@@ -1,0 +1,10 @@
+generatorName: motoko
+outputDir: samples/client/tmdb/motoko/generated
+inputSpec: samples/client/tmdb/motoko/specs/tmdb-api.json
+templateDir: modules/openapi-generator/src/main/resources/motoko
+artifactId: tmdb-client
+artifactVersion: 0.1.0
+additionalProperties:
+  hideGenerationTimestamp: "true"
+  useDfx: false
+  artifactRepoUrl: "https://github.com/caffeinelabs/tmdb-client"
