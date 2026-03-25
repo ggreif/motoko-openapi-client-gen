@@ -12,3 +12,5 @@ Changes needed in mops.toml.mustache:
 4. Verify all transitive dependencies still resolve correctly with mops
 
 This ensures generated samples use canonical, maintained package versions.
+
+UPDATE (2026-03-25): Base64.mo is now in core@2.3.1 (upstream). The claude/base64 branch dependency may no longer be needed — verify and update mops.toml.mustache to drop the branch pin.
