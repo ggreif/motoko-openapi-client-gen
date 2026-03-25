@@ -16,3 +16,5 @@ Test should verify:
 Similar pattern to other reserved words like "Text", "Error", etc.
 
 Location: MotokoClientCodegen.java lines 262, 338
+
+UPDATE (2026-03-25): Likely have a test already. Verify.
