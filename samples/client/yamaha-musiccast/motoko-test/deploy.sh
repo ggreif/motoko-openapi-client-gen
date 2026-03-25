@@ -39,16 +39,13 @@ echo "Using moc-wrapper: $(command -v moc-wrapper)"
 echo
 
 # --- Start replica ---
-echo "Starting local dfx replica (clean)..."
-dfx killall 2>/dev/null || true
-dfx start --clean --background
-
-# Wait for healthy replica
-for i in $(seq 1 20); do
-  if dfx ping &>/dev/null; then break; fi
-  sleep 1
-done
-dfx ping
+if dfx ping &>/dev/null; then
+  echo "dfx replica already running, reusing it."
+else
+  echo "ERROR: dfx replica is not running. Please start it first with:"
+  echo "  dfx start --clean --background"
+  exit 1
+fi
 
 # --- Deploy ---
 echo

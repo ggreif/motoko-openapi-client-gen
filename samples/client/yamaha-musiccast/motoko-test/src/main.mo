@@ -13,6 +13,15 @@ persistent actor {
     transient let powerApi = PowerApi(apiConfig);
     transient let zoneApi = ZoneApi(apiConfig);
 
+    /// Get current zone status
+    public func getStatus() : async Text {
+        let s = await zoneApi.getZoneStatus("main");
+        "power=" # (switch (s.power) { case (?#standby) "standby"; case (?#true_) "on"; case null "?" }) #
+        " volume=" # (switch (s.volume) { case (?v) Int.toText(v); case null "?" }) #
+        " input=" # (switch (s.input) { case (?i) i; case null "?" }) #
+        " mute=" # (switch (s.mute) { case (?m) (if m "yes" else "no"); case null "?" })
+    };
+
     /// Test sequence: power on, raise volume to 30% in 5-increments, do 10 down steps, do 3 up steps, power off
     public func testYamahaSequence() : async Text {
         Debug.print("Starting Yamaha MusicCast test sequence");
