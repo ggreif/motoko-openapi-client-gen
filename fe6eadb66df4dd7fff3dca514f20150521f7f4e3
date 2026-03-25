@@ -1,0 +1,16 @@
+TODO: Think through mops version ↔ OpenAPI version alignment strategy
+
+The mops package version describes the Motoko binding layer, not the upstream API version.
+Questions to consider:
+- Should mops major version track the API's major version? (e.g., X API v2 → x-client@2.x.x)
+- Or should mops version be fully independent (Motoko-side breaking changes only)?
+- Patch versions (x.y.Z) are clearly free for generator/binding fixes.
+- Minor versions: new endpoints covered, or new Motoko features?
+- Example: twilio_messaging_v1 → twilio-client@1.x.x?
+
+Pro alignment: users instantly know which API version the package targets.
+Con alignment: forces major bumps even for trivial upstream version increments.
+
+Possible middle ground: encode API version in package description/README, keep mops versioning independent.
+
+Decide before releasing @1.0.0 or beyond of any client.
