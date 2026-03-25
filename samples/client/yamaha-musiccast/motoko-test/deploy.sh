@@ -1,54 +1,61 @@
 #!/bin/bash
 # Deploy to local dfx and test Yamaha MusicCast API
+set -e
 
 cd "$(dirname "$0")"
 
-DFX_MOC_PATH=/Users/ggreif/motoko/bin/moc
+# --- PATH setup ---
+# Ensure /bin and /usr/bin are present (dfx subprocesses need 'which', 'sh', etc.)
+export PATH="/bin:/usr/bin:$PATH"
 
-# Check for moc-wrapper and add to PATH if needed
-if ! command -v moc-wrapper &> /dev/null; then
-  # Try common locations for moc-wrapper
-  COMMON_PATHS=(
-    "$HOME/motoko/node_modules/.bin"
-    "./node_modules/.bin"
-    "../node_modules/.bin"
-  )
-
-  MOC_WRAPPER_FOUND=false
-  for path in "${COMMON_PATHS[@]}"; do
-    if [ -x "$path/moc-wrapper" ]; then
-      export PATH="$path:$PATH"
-      MOC_WRAPPER_FOUND=true
-      break
-    fi
-  done
-
-  if [ "$MOC_WRAPPER_FOUND" = false ]; then
-    echo "Error: moc-wrapper not found in PATH"
-    echo "Please install it with: npm install -g ic-mops"
-    echo "Or ensure it's available in your PATH"
-    exit 1
+# Add moc-wrapper (from motoko dev install or node_modules)
+for moc_dir in \
+    "$HOME/motoko/node_modules/.bin" \
+    "$(dirname "$0")/node_modules/.bin" \
+    "./node_modules/.bin"; do
+  if [ -x "$moc_dir/moc-wrapper" ]; then
+    export PATH="$moc_dir:$PATH"
+    break
   fi
+done
+
+# Add node/npx (needed for 'npx ic-mops sources' packtool)
+if ! command -v npx &>/dev/null; then
+  echo "Error: npx not found. Please install Node.js."
+  exit 1
+fi
+NODE_BIN="$(dirname "$(command -v npx)")"
+export PATH="$NODE_BIN:$PATH"
+
+# Ensure dfx is on PATH (works around the space in 'Application Support')
+if ! command -v dfx &>/dev/null; then
+  DFX_BIN="$HOME/Library/Application Support/org.dfinity.dfx/bin"
+  ln -sf "$DFX_BIN/dfx" /tmp/dfx
+  export PATH="/tmp:$PATH"
 fi
 
-echo "Starting local dfx replica..."
+echo "Using dfx $(dfx --version)"
+echo "Using moc-wrapper: $(command -v moc-wrapper)"
+echo
+
+# --- Start replica ---
+echo "Starting local dfx replica (clean)..."
+dfx killall 2>/dev/null || true
 dfx start --clean --background
 
+# Wait for healthy replica
+for i in $(seq 1 20); do
+  if dfx ping &>/dev/null; then break; fi
+  sleep 1
+done
+dfx ping
+
+# --- Deploy ---
 echo
 echo "Deploying yamaha_test canister..."
-if ! dfx deploy yamaha_test; then
-    echo "Error: dfx deploy failed"
-    exit 1
-fi
+dfx deploy --no-wallet yamaha_test
 
-echo
-echo "Adding cycles to canister for HTTP outcalls..."
-# First, fund the wallet canister with ICP (which gets converted to cycles)
-WALLET_ID=$(dfx identity get-wallet)
-dfx ledger fabricate-cycles --canister "$WALLET_ID" --amount 10
-# Then deposit cycles from wallet to the yamaha_test canister
-dfx canister deposit-cycles 100_000_000_000_000 yamaha_test
-
+# --- Run test ---
 echo
 echo "============================="
 echo "Running Yamaha test sequence..."
