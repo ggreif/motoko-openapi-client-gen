@@ -1,2 +1,4 @@
 TODO: Revisit dfx-flavoured generation for PUT/DELETE once dfx exposes these methods.
 Uncomment #put and #delete in the useDfx section of api.mustache (see plan in .claude/plans/put-delete.md).
+
+UPDATE (2026-03-25): PUT/DELETE works on mainnet. pocket-ic also supports it. dfx still lags — no local tests possible yet. Recheck when dfx catches up.
