@@ -1,4 +1,4 @@
-// UserApi.mo
+// PetApi.mo
 
 import Text "mo:core/Text";
 import Int "mo:core/Int";
@@ -6,12 +6,15 @@ import Blob "mo:core/Blob";
 import Array "mo:core/Array";
 import Error "mo:core/Error";
 import Base64 "mo:core/Base64";
-import { JSON } "mo:serde";
+import { JSON } "mo:serde-core";
 // FIXME: destructuring on `actor` types is not implemented yet for shared functions
 //        type error [M0114], object pattern cannot consume actor type
 import { type http_request_args; type http_request_result; type http_header } "ic:aaaaa-aa";
 import Mgnt__ = "ic:aaaaa-aa";
-import { type User; JSON = User } "../Models/User";
+import { type ApiResponse; JSON = ApiResponse } "../Models/ApiResponse";
+import { type FindPetsByStatusStatusParameterInner; JSON = FindPetsByStatusStatusParameterInner } "../Models/FindPetsByStatusStatusParameterInner";
+import { type Pet; JSON = Pet } "../Models/Pet";
+import { type Config } "../Config";
 
 module {
     type http_method = {
@@ -28,82 +31,11 @@ module {
     let http_request = Mgnt__.http_request;
 
 
-    public type Auth__ = {
-        #bearer : Text;
-        #apiKey : Text;
-        #basicAuth : { user : Text; password : Text };
-    };
-
-    public type Config__ = {
-        baseUrl : Text;
-        auth : ?Auth__;
-        max_response_bytes : ?Nat64;
-        transform : ?{
-            function : shared query ({ response : http_request_result; context : Blob }) -> async http_request_result;
-            context : Blob;
-        };
-        is_replicated : ?Bool;
-        cycles : Nat;
-    };
-
-    /// Create user
-    /// This can only be done by the logged in user.
-    public func createUser(config : Config__, user : User) : async* () {
-        let {baseUrl; cycles} = config;
-        let baseUrl__ = baseUrl # "/user";
-
-        // Add API key as query parameter if using apiKey auth
-        let url = switch (config.auth) {
-            case _ baseUrl__;
-        };
-
-        let baseHeaders = [
-            { name = "Content-Type"; value = "application/json; charset=utf-8" }
-        ];
-
-        // Build authentication headers based on auth type
-        let authHeaders = switch (config.auth) {
-            case (?#bearer(token)) {
-                [{ name = "Authorization"; value = "Bearer " # token }]
-            };
-            case (?#apiKey(key)) {
-                // API key goes in header
-                [{ name = "api_key"; value = key }]
-            };
-            case (?#basicAuth({user; password})) {
-                let encoded = Base64.encode(Text.encodeUtf8(user # ":" # password));
-                [{ name = "Authorization"; value = "Basic " # encoded }]
-            };
-            case null [];
-        };
-
-        let headers = Array.flatten<http_header>([
-            baseHeaders,
-            authHeaders
-        ]);
-
-        let request : http_request_args = { config with
-            url;
-            method = #post;
-            headers;
-            body = do ? {
-                let jsonValue = User.toJSON(user);
-                let candidBlob = to_candid(jsonValue);
-                let #ok(jsonText) = JSON.toText(candidBlob, [], null) else throw Error.reject("Failed to serialize to JSON");
-                Text.encodeUtf8(jsonText)
-            };
-        };
-
-        // Call the management canister's http_request method with cycles
-        ignore await (with cycles) http_request(request);
-
-    };
-
-    /// Creates list of users with given input array
+    /// Add a new pet to the store
     /// 
-    public func createUsersWithArrayInput(config : Config__, user : [User]) : async* () {
+    public func addPet(config : Config, pet : Pet) : async* Pet {
         let {baseUrl; cycles} = config;
-        let baseUrl__ = baseUrl # "/user/createWithArray";
+        let baseUrl__ = baseUrl # "/pet";
 
         // Add API key as query parameter if using apiKey auth
         let url = switch (config.auth) {
@@ -140,7 +72,7 @@ module {
             method = #post;
             headers;
             body = do ? {
-                let jsonValue = Array.map<User, User.JSON>(user, User.toJSON);
+                let jsonValue = Pet.toJSON(pet);
                 let candidBlob = to_candid(jsonValue);
                 let #ok(jsonText) = JSON.toText(candidBlob, [], null) else throw Error.reject("Failed to serialize to JSON");
                 Text.encodeUtf8(jsonText)
@@ -148,15 +80,53 @@ module {
         };
 
         // Call the management canister's http_request method with cycles
-        ignore await (with cycles) http_request(request);
+        let response : http_request_result = await (with cycles) http_request(request);
 
+        // Check HTTP status code before parsing
+        if (response.status >= 200 and response.status < 300) {
+            // Success response (2xx): parse as expected return type
+            (switch (Text.decodeUtf8(response.body)) {
+                case (?text) text;
+                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to decode response body as UTF-8");
+            }) |>
+            (switch (JSON.fromText(_, null)) {
+                case (#ok(blob)) blob;
+                case (#err(msg)) throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to parse JSON: " # msg);
+            }) |>
+            from_candid(_) : ?Pet.JSON |>
+            (switch (_) {
+                case (?jsonValue) {
+                    switch (Pet.fromJSON(jsonValue)) {
+                        case (?value) value;
+                        case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to convert response to Pet");
+                    }
+                };
+                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response");
+            })
+        } else {
+            // Error response (4xx, 5xx): parse error models and throw
+            let responseText = switch (Text.decodeUtf8(response.body)) {
+                case (?text) text;
+                case null "";  // Empty body for some errors (e.g., 404)
+            };
+
+            // 405: Invalid input (no response body model defined)
+            if (response.status == 405) {
+                throw Error.reject("HTTP 405: Invalid input");
+            };
+
+            // Fallback for status codes not defined in OpenAPI spec
+            throw Error.reject("HTTP " # Int.toText(response.status) # ": Unexpected error" #
+                (if (responseText != "") { " - " # responseText } else { "" }));
+        }
     };
 
-    /// Creates list of users with given input array
+    /// Deletes a pet
     /// 
-    public func createUsersWithListInput(config : Config__, user : [User]) : async* () {
+    public func deletePet(config : Config, petId : Int, apiKey : Text) : async* () {
         let {baseUrl; cycles} = config;
-        let baseUrl__ = baseUrl # "/user/createWithList";
+        let baseUrl__ = baseUrl # "/pet/{petId}"
+            |> Text.replace(_, #text "{petId}", debug_show(petId));
 
         // Add API key as query parameter if using apiKey auth
         let url = switch (config.auth) {
@@ -164,61 +134,8 @@ module {
         };
 
         let baseHeaders = [
-            { name = "Content-Type"; value = "application/json; charset=utf-8" }
-        ];
-
-        // Build authentication headers based on auth type
-        let authHeaders = switch (config.auth) {
-            case (?#bearer(token)) {
-                [{ name = "Authorization"; value = "Bearer " # token }]
-            };
-            case (?#apiKey(key)) {
-                // API key goes in header
-                [{ name = "api_key"; value = key }]
-            };
-            case (?#basicAuth({user; password})) {
-                let encoded = Base64.encode(Text.encodeUtf8(user # ":" # password));
-                [{ name = "Authorization"; value = "Basic " # encoded }]
-            };
-            case null [];
-        };
-
-        let headers = Array.flatten<http_header>([
-            baseHeaders,
-            authHeaders
-        ]);
-
-        let request : http_request_args = { config with
-            url;
-            method = #post;
-            headers;
-            body = do ? {
-                let jsonValue = Array.map<User, User.JSON>(user, User.toJSON);
-                let candidBlob = to_candid(jsonValue);
-                let #ok(jsonText) = JSON.toText(candidBlob, [], null) else throw Error.reject("Failed to serialize to JSON");
-                Text.encodeUtf8(jsonText)
-            };
-        };
-
-        // Call the management canister's http_request method with cycles
-        ignore await (with cycles) http_request(request);
-
-    };
-
-    /// Delete user
-    /// This can only be done by the logged in user.
-    public func deleteUser(config : Config__, username : Text) : async* () {
-        let {baseUrl; cycles} = config;
-        let baseUrl__ = baseUrl # "/user/{username}"
-            |> Text.replace(_, #text "{username}", username);
-
-        // Add API key as query parameter if using apiKey auth
-        let url = switch (config.auth) {
-            case _ baseUrl__;
-        };
-
-        let baseHeaders = [
-            { name = "Content-Type"; value = "application/json; charset=utf-8" }
+            { name = "Content-Type"; value = "application/json; charset=utf-8" },
+            { name = "api_key"; value = apiKey }
         ];
 
         // Build authentication headers based on auth type
@@ -254,12 +171,12 @@ module {
 
     };
 
-    /// Get user by user name
-    /// 
-    public func getUserByName(config : Config__, username : Text) : async* User {
+    /// Finds Pets by status
+    /// Multiple status values can be provided with comma separated strings
+    public func findPetsByStatus(config : Config, status : [FindPetsByStatusStatusParameterInner]) : async* [Pet] {
         let {baseUrl; cycles} = config;
-        let baseUrl__ = baseUrl # "/user/{username}"
-            |> Text.replace(_, #text "{username}", username);
+        let baseUrl__ = baseUrl # "/pet/findByStatus"
+            # "?" # "status=" # debug_show(status);
 
         // Add API key as query parameter if using apiKey auth
         let url = switch (config.auth) {
@@ -312,12 +229,186 @@ module {
                 case (#ok(blob)) blob;
                 case (#err(msg)) throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to parse JSON: " # msg);
             }) |>
-            from_candid(_) : ?User.JSON |>
+            from_candid(_) : ?[Pet.JSON] |>
+            (switch (_) {
+                case (?jsonArray) {
+                    let converted = Array.filterMap<Pet.JSON, Pet>(jsonArray, Pet.fromJSON);
+                    if (converted.size() != jsonArray.size()) {
+                        throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to convert some array elements to Pet");
+                    };
+                    converted
+                };
+                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response");
+            })
+        } else {
+            // Error response (4xx, 5xx): parse error models and throw
+            let responseText = switch (Text.decodeUtf8(response.body)) {
+                case (?text) text;
+                case null "";  // Empty body for some errors (e.g., 404)
+            };
+
+            // 400: Invalid status value (no response body model defined)
+            if (response.status == 400) {
+                throw Error.reject("HTTP 400: Invalid status value");
+            };
+
+            // Fallback for status codes not defined in OpenAPI spec
+            throw Error.reject("HTTP " # Int.toText(response.status) # ": Unexpected error" #
+                (if (responseText != "") { " - " # responseText } else { "" }));
+        }
+    };
+
+    /// Finds Pets by tags
+    /// Multiple tags can be provided with comma separated strings. Use tag1, tag2, tag3 for testing.
+    public func findPetsByTags(config : Config, tags : [Text]) : async* [Pet] {
+        let {baseUrl; cycles} = config;
+        let baseUrl__ = baseUrl # "/pet/findByTags"
+            # "?" # "tags=" # debug_show(tags);
+
+        // Add API key as query parameter if using apiKey auth
+        let url = switch (config.auth) {
+            case _ baseUrl__;
+        };
+
+        let baseHeaders = [
+            { name = "Content-Type"; value = "application/json; charset=utf-8" }
+        ];
+
+        // Build authentication headers based on auth type
+        let authHeaders = switch (config.auth) {
+            case (?#bearer(token)) {
+                [{ name = "Authorization"; value = "Bearer " # token }]
+            };
+            case (?#apiKey(key)) {
+                // API key goes in header
+                [{ name = "api_key"; value = key }]
+            };
+            case (?#basicAuth({user; password})) {
+                let encoded = Base64.encode(Text.encodeUtf8(user # ":" # password));
+                [{ name = "Authorization"; value = "Basic " # encoded }]
+            };
+            case null [];
+        };
+
+        let headers = Array.flatten<http_header>([
+            baseHeaders,
+            authHeaders
+        ]);
+
+        let request : http_request_args = { config with
+            url;
+            method = #get;
+            headers;
+            body = null;
+        };
+
+        // Call the management canister's http_request method with cycles
+        let response : http_request_result = await (with cycles) http_request(request);
+
+        // Check HTTP status code before parsing
+        if (response.status >= 200 and response.status < 300) {
+            // Success response (2xx): parse as expected return type
+            (switch (Text.decodeUtf8(response.body)) {
+                case (?text) text;
+                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to decode response body as UTF-8");
+            }) |>
+            (switch (JSON.fromText(_, null)) {
+                case (#ok(blob)) blob;
+                case (#err(msg)) throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to parse JSON: " # msg);
+            }) |>
+            from_candid(_) : ?[Pet.JSON] |>
+            (switch (_) {
+                case (?jsonArray) {
+                    let converted = Array.filterMap<Pet.JSON, Pet>(jsonArray, Pet.fromJSON);
+                    if (converted.size() != jsonArray.size()) {
+                        throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to convert some array elements to Pet");
+                    };
+                    converted
+                };
+                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response");
+            })
+        } else {
+            // Error response (4xx, 5xx): parse error models and throw
+            let responseText = switch (Text.decodeUtf8(response.body)) {
+                case (?text) text;
+                case null "";  // Empty body for some errors (e.g., 404)
+            };
+
+            // 400: Invalid tag value (no response body model defined)
+            if (response.status == 400) {
+                throw Error.reject("HTTP 400: Invalid tag value");
+            };
+
+            // Fallback for status codes not defined in OpenAPI spec
+            throw Error.reject("HTTP " # Int.toText(response.status) # ": Unexpected error" #
+                (if (responseText != "") { " - " # responseText } else { "" }));
+        }
+    };
+
+    /// Find pet by ID
+    /// Returns a single pet
+    public func getPetById(config : Config, petId : Int) : async* Pet {
+        let {baseUrl; cycles} = config;
+        let baseUrl__ = baseUrl # "/pet/{petId}"
+            |> Text.replace(_, #text "{petId}", debug_show(petId));
+
+        // Add API key as query parameter if using apiKey auth
+        let url = switch (config.auth) {
+            case _ baseUrl__;
+        };
+
+        let baseHeaders = [
+            { name = "Content-Type"; value = "application/json; charset=utf-8" }
+        ];
+
+        // Build authentication headers based on auth type
+        let authHeaders = switch (config.auth) {
+            case (?#bearer(token)) {
+                [{ name = "Authorization"; value = "Bearer " # token }]
+            };
+            case (?#apiKey(key)) {
+                // API key goes in header
+                [{ name = "api_key"; value = key }]
+            };
+            case (?#basicAuth({user; password})) {
+                let encoded = Base64.encode(Text.encodeUtf8(user # ":" # password));
+                [{ name = "Authorization"; value = "Basic " # encoded }]
+            };
+            case null [];
+        };
+
+        let headers = Array.flatten<http_header>([
+            baseHeaders,
+            authHeaders
+        ]);
+
+        let request : http_request_args = { config with
+            url;
+            method = #get;
+            headers;
+            body = null;
+        };
+
+        // Call the management canister's http_request method with cycles
+        let response : http_request_result = await (with cycles) http_request(request);
+
+        // Check HTTP status code before parsing
+        if (response.status >= 200 and response.status < 300) {
+            // Success response (2xx): parse as expected return type
+            (switch (Text.decodeUtf8(response.body)) {
+                case (?text) text;
+                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to decode response body as UTF-8");
+            }) |>
+            (switch (JSON.fromText(_, null)) {
+                case (#ok(blob)) blob;
+                case (#err(msg)) throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to parse JSON: " # msg);
+            }) |>
+            from_candid(_) : ?Pet.JSON |>
             (switch (_) {
                 case (?jsonValue) {
-                    switch (User.fromJSON(jsonValue)) {
+                    switch (Pet.fromJSON(jsonValue)) {
                         case (?value) value;
-                        case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to convert response to User");
+                        case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to convert response to Pet");
                     }
                 };
                 case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response");
@@ -329,13 +420,13 @@ module {
                 case null "";  // Empty body for some errors (e.g., 404)
             };
 
-            // 400: Invalid username supplied (no response body model defined)
+            // 400: Invalid ID supplied (no response body model defined)
             if (response.status == 400) {
-                throw Error.reject("HTTP 400: Invalid username supplied");
+                throw Error.reject("HTTP 400: Invalid ID supplied");
             };
-            // 404: User not found (no response body model defined)
+            // 404: Pet not found (no response body model defined)
             if (response.status == 404) {
-                throw Error.reject("HTTP 404: User not found");
+                throw Error.reject("HTTP 404: Pet not found");
             };
 
             // Fallback for status codes not defined in OpenAPI spec
@@ -344,141 +435,11 @@ module {
         }
     };
 
-    /// Logs user into the system
+    /// Update an existing pet
     /// 
-    public func loginUser(config : Config__, username : Text, password : Text) : async* Text {
+    public func updatePet(config : Config, pet : Pet) : async* Pet {
         let {baseUrl; cycles} = config;
-        let baseUrl__ = baseUrl # "/user/login"
-            # "?" # "username=" # username # "&" # "password=" # password;
-
-        // Add API key as query parameter if using apiKey auth
-        let url = switch (config.auth) {
-            case _ baseUrl__;
-        };
-
-        let baseHeaders = [
-            { name = "Content-Type"; value = "application/json; charset=utf-8" }
-        ];
-
-        // Build authentication headers based on auth type
-        let authHeaders = switch (config.auth) {
-            case (?#bearer(token)) {
-                [{ name = "Authorization"; value = "Bearer " # token }]
-            };
-            case (?#apiKey(key)) {
-                // API key goes in header
-                [{ name = "api_key"; value = key }]
-            };
-            case (?#basicAuth({user; password})) {
-                let encoded = Base64.encode(Text.encodeUtf8(user # ":" # password));
-                [{ name = "Authorization"; value = "Basic " # encoded }]
-            };
-            case null [];
-        };
-
-        let headers = Array.flatten<http_header>([
-            baseHeaders,
-            authHeaders
-        ]);
-
-        let request : http_request_args = { config with
-            url;
-            method = #get;
-            headers;
-            body = null;
-        };
-
-        // Call the management canister's http_request method with cycles
-        let response : http_request_result = await (with cycles) http_request(request);
-
-        // Check HTTP status code before parsing
-        if (response.status >= 200 and response.status < 300) {
-            // Success response (2xx): parse as expected return type
-            (switch (Text.decodeUtf8(response.body)) {
-                case (?text) text;
-                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to decode response body as UTF-8");
-            }) |>
-            (switch (JSON.fromText(_, null)) {
-                case (#ok(blob)) blob;
-                case (#err(msg)) throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to parse JSON: " # msg);
-            }) |>
-            from_candid(_) : ?Text |>
-            (switch (_) {
-                case (?result) result;
-                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response");
-            })
-        } else {
-            // Error response (4xx, 5xx): parse error models and throw
-            let responseText = switch (Text.decodeUtf8(response.body)) {
-                case (?text) text;
-                case null "";  // Empty body for some errors (e.g., 404)
-            };
-
-            // 400: Invalid username/password supplied (no response body model defined)
-            if (response.status == 400) {
-                throw Error.reject("HTTP 400: Invalid username/password supplied");
-            };
-
-            // Fallback for status codes not defined in OpenAPI spec
-            throw Error.reject("HTTP " # Int.toText(response.status) # ": Unexpected error" #
-                (if (responseText != "") { " - " # responseText } else { "" }));
-        }
-    };
-
-    /// Logs out current logged in user session
-    /// 
-    public func logoutUser(config : Config__) : async* () {
-        let {baseUrl; cycles} = config;
-        let baseUrl__ = baseUrl # "/user/logout";
-
-        // Add API key as query parameter if using apiKey auth
-        let url = switch (config.auth) {
-            case _ baseUrl__;
-        };
-
-        let baseHeaders = [
-            { name = "Content-Type"; value = "application/json; charset=utf-8" }
-        ];
-
-        // Build authentication headers based on auth type
-        let authHeaders = switch (config.auth) {
-            case (?#bearer(token)) {
-                [{ name = "Authorization"; value = "Bearer " # token }]
-            };
-            case (?#apiKey(key)) {
-                // API key goes in header
-                [{ name = "api_key"; value = key }]
-            };
-            case (?#basicAuth({user; password})) {
-                let encoded = Base64.encode(Text.encodeUtf8(user # ":" # password));
-                [{ name = "Authorization"; value = "Basic " # encoded }]
-            };
-            case null [];
-        };
-
-        let headers = Array.flatten<http_header>([
-            baseHeaders,
-            authHeaders
-        ]);
-
-        let request : http_request_args = { config with
-            url;
-            method = #get;
-            headers;
-            body = null;
-        };
-
-        // Call the management canister's http_request method with cycles
-        ignore await (with cycles) http_request(request);
-
-    };
-
-    /// Updated user
-    /// This can only be done by the logged in user.
-    public func updateUser(config : Config__, username : Text, user : User) : async* () {
-        let {baseUrl; cycles} = config;
-        let baseUrl__ = baseUrl # "/user/{username}"
-            |> Text.replace(_, #text "{username}", username);
+        let baseUrl__ = baseUrl # "/pet";
 
         // Add API key as query parameter if using apiKey auth
         let url = switch (config.auth) {
@@ -515,7 +476,7 @@ module {
             method = #put;
             headers;
             body = do ? {
-                let jsonValue = User.toJSON(user);
+                let jsonValue = Pet.toJSON(pet);
                 let candidBlob = to_candid(jsonValue);
                 let #ok(jsonText) = JSON.toText(candidBlob, [], null) else throw Error.reject("Failed to serialize to JSON");
                 Text.encodeUtf8(jsonText)
@@ -523,69 +484,245 @@ module {
         };
 
         // Call the management canister's http_request method with cycles
+        let response : http_request_result = await (with cycles) http_request(request);
+
+        // Check HTTP status code before parsing
+        if (response.status >= 200 and response.status < 300) {
+            // Success response (2xx): parse as expected return type
+            (switch (Text.decodeUtf8(response.body)) {
+                case (?text) text;
+                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to decode response body as UTF-8");
+            }) |>
+            (switch (JSON.fromText(_, null)) {
+                case (#ok(blob)) blob;
+                case (#err(msg)) throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to parse JSON: " # msg);
+            }) |>
+            from_candid(_) : ?Pet.JSON |>
+            (switch (_) {
+                case (?jsonValue) {
+                    switch (Pet.fromJSON(jsonValue)) {
+                        case (?value) value;
+                        case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to convert response to Pet");
+                    }
+                };
+                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response");
+            })
+        } else {
+            // Error response (4xx, 5xx): parse error models and throw
+            let responseText = switch (Text.decodeUtf8(response.body)) {
+                case (?text) text;
+                case null "";  // Empty body for some errors (e.g., 404)
+            };
+
+            // 400: Invalid ID supplied (no response body model defined)
+            if (response.status == 400) {
+                throw Error.reject("HTTP 400: Invalid ID supplied");
+            };
+            // 404: Pet not found (no response body model defined)
+            if (response.status == 404) {
+                throw Error.reject("HTTP 404: Pet not found");
+            };
+            // 405: Validation exception (no response body model defined)
+            if (response.status == 405) {
+                throw Error.reject("HTTP 405: Validation exception");
+            };
+
+            // Fallback for status codes not defined in OpenAPI spec
+            throw Error.reject("HTTP " # Int.toText(response.status) # ": Unexpected error" #
+                (if (responseText != "") { " - " # responseText } else { "" }));
+        }
+    };
+
+    /// Updates a pet in the store with form data
+    /// 
+    public func updatePetWithForm(config : Config, petId : Int, name : Text, status : Text) : async* () {
+        let {baseUrl; cycles} = config;
+        let baseUrl__ = baseUrl # "/pet/{petId}"
+            |> Text.replace(_, #text "{petId}", debug_show(petId));
+
+        // Add API key as query parameter if using apiKey auth
+        let url = switch (config.auth) {
+            case _ baseUrl__;
+        };
+
+        let baseHeaders = [
+            { name = "Content-Type"; value = "application/json; charset=utf-8" }
+        ];
+
+        // Build authentication headers based on auth type
+        let authHeaders = switch (config.auth) {
+            case (?#bearer(token)) {
+                [{ name = "Authorization"; value = "Bearer " # token }]
+            };
+            case (?#apiKey(key)) {
+                // API key goes in header
+                [{ name = "api_key"; value = key }]
+            };
+            case (?#basicAuth({user; password})) {
+                let encoded = Base64.encode(Text.encodeUtf8(user # ":" # password));
+                [{ name = "Authorization"; value = "Basic " # encoded }]
+            };
+            case null [];
+        };
+
+        let headers = Array.flatten<http_header>([
+            baseHeaders,
+            authHeaders
+        ]);
+
+        let request : http_request_args = { config with
+            url;
+            method = #post;
+            headers;
+            body = null;
+        };
+
+        // Call the management canister's http_request method with cycles
         ignore await (with cycles) http_request(request);
 
     };
 
+    /// uploads an image
+    /// 
+    public func uploadFile(config : Config, petId : Int, additionalMetadata : Text, file : Blob) : async* ApiResponse {
+        let {baseUrl; cycles} = config;
+        let baseUrl__ = baseUrl # "/pet/{petId}/uploadImage"
+            |> Text.replace(_, #text "{petId}", debug_show(petId));
 
-    let operations__ = {
-        createUser;
-        createUsersWithArrayInput;
-        createUsersWithListInput;
-        deleteUser;
-        getUserByName;
-        loginUser;
-        logoutUser;
-        updateUser;
+        // Add API key as query parameter if using apiKey auth
+        let url = switch (config.auth) {
+            case _ baseUrl__;
+        };
+
+        let baseHeaders = [
+            { name = "Content-Type"; value = "application/json; charset=utf-8" }
+        ];
+
+        // Build authentication headers based on auth type
+        let authHeaders = switch (config.auth) {
+            case (?#bearer(token)) {
+                [{ name = "Authorization"; value = "Bearer " # token }]
+            };
+            case (?#apiKey(key)) {
+                // API key goes in header
+                [{ name = "api_key"; value = key }]
+            };
+            case (?#basicAuth({user; password})) {
+                let encoded = Base64.encode(Text.encodeUtf8(user # ":" # password));
+                [{ name = "Authorization"; value = "Basic " # encoded }]
+            };
+            case null [];
+        };
+
+        let headers = Array.flatten<http_header>([
+            baseHeaders,
+            authHeaders
+        ]);
+
+        let request : http_request_args = { config with
+            url;
+            method = #post;
+            headers;
+            body = null;
+        };
+
+        // Call the management canister's http_request method with cycles
+        let response : http_request_result = await (with cycles) http_request(request);
+
+        // Check HTTP status code before parsing
+        if (response.status >= 200 and response.status < 300) {
+            // Success response (2xx): parse as expected return type
+            (switch (Text.decodeUtf8(response.body)) {
+                case (?text) text;
+                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to decode response body as UTF-8");
+            }) |>
+            (switch (JSON.fromText(_, null)) {
+                case (#ok(blob)) blob;
+                case (#err(msg)) throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to parse JSON: " # msg);
+            }) |>
+            from_candid(_) : ?ApiResponse.JSON |>
+            (switch (_) {
+                case (?jsonValue) {
+                    switch (ApiResponse.fromJSON(jsonValue)) {
+                        case (?value) value;
+                        case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to convert response to ApiResponse");
+                    }
+                };
+                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response");
+            })
+        } else {
+            // Error response (4xx, 5xx): parse error models and throw
+            let responseText = switch (Text.decodeUtf8(response.body)) {
+                case (?text) text;
+                case null "";  // Empty body for some errors (e.g., 404)
+            };
+
+
+            // Fallback for status codes not defined in OpenAPI spec
+            throw Error.reject("HTTP " # Int.toText(response.status) # ": Unexpected error" #
+                (if (responseText != "") { " - " # responseText } else { "" }));
+        }
     };
 
-    public module class UserApi(config : Config__) {
-        /// Create user
-        /// This can only be done by the logged in user.
-        public func createUser(user : User) : async () {
-            await* operations__.createUser(config, user)
-        };
 
-        /// Creates list of users with given input array
+    let operations__ = {
+        addPet;
+        deletePet;
+        findPetsByStatus;
+        findPetsByTags;
+        getPetById;
+        updatePet;
+        updatePetWithForm;
+        uploadFile;
+    };
+
+    public module class PetApi(config : Config) {
+        /// Add a new pet to the store
         /// 
-        public func createUsersWithArrayInput(user : [User]) : async () {
-            await* operations__.createUsersWithArrayInput(config, user)
+        public func addPet(pet : Pet) : async Pet {
+            await* operations__.addPet(config, pet)
         };
 
-        /// Creates list of users with given input array
+        /// Deletes a pet
         /// 
-        public func createUsersWithListInput(user : [User]) : async () {
-            await* operations__.createUsersWithListInput(config, user)
+        public func deletePet(petId : Int, apiKey : Text) : async () {
+            await* operations__.deletePet(config, petId, apiKey)
         };
 
-        /// Delete user
-        /// This can only be done by the logged in user.
-        public func deleteUser(username : Text) : async () {
-            await* operations__.deleteUser(config, username)
+        /// Finds Pets by status
+        /// Multiple status values can be provided with comma separated strings
+        public func findPetsByStatus(status : [FindPetsByStatusStatusParameterInner]) : async [Pet] {
+            await* operations__.findPetsByStatus(config, status)
         };
 
-        /// Get user by user name
+        /// Finds Pets by tags
+        /// Multiple tags can be provided with comma separated strings. Use tag1, tag2, tag3 for testing.
+        public func findPetsByTags(tags : [Text]) : async [Pet] {
+            await* operations__.findPetsByTags(config, tags)
+        };
+
+        /// Find pet by ID
+        /// Returns a single pet
+        public func getPetById(petId : Int) : async Pet {
+            await* operations__.getPetById(config, petId)
+        };
+
+        /// Update an existing pet
         /// 
-        public func getUserByName(username : Text) : async User {
-            await* operations__.getUserByName(config, username)
+        public func updatePet(pet : Pet) : async Pet {
+            await* operations__.updatePet(config, pet)
         };
 
-        /// Logs user into the system
+        /// Updates a pet in the store with form data
         /// 
-        public func loginUser(username : Text, password : Text) : async Text {
-            await* operations__.loginUser(config, username, password)
+        public func updatePetWithForm(petId : Int, name : Text, status : Text) : async () {
+            await* operations__.updatePetWithForm(config, petId, name, status)
         };
 
-        /// Logs out current logged in user session
+        /// uploads an image
         /// 
-        public func logoutUser() : async () {
-            await* operations__.logoutUser(config)
-        };
-
-        /// Updated user
-        /// This can only be done by the logged in user.
-        public func updateUser(username : Text, user : User) : async () {
-            await* operations__.updateUser(config, username, user)
+        public func uploadFile(petId : Int, additionalMetadata : Text, file : Blob) : async ApiResponse {
+            await* operations__.uploadFile(config, petId, additionalMetadata, file)
         };
 
     }

@@ -6,8 +6,9 @@ import Blob "mo:core/Blob";
 import Array "mo:core/Array";
 import Error "mo:core/Error";
 import Base64 "mo:core/Base64";
-import { JSON } "mo:serde";
+import { JSON } "mo:serde-core";
 import { type User; JSON = User } "../Models/User";
+import { type Config } "../Config";
 
 module {
     // Management Canister interface for HTTP outcalls
@@ -47,27 +48,9 @@ module {
     let http_request = (actor "aaaaa-aa" : actor { http_request : (http_request_args) -> async http_request_result }).http_request;
 
 
-    public type Auth__ = {
-        #bearer : Text;
-        #apiKey : Text;
-        #basicAuth : { user : Text; password : Text };
-    };
-
-    public type Config__ = {
-        baseUrl : Text;
-        auth : ?Auth__;
-        max_response_bytes : ?Nat64;
-        transform : ?{
-            function : shared query ({ response : http_request_result; context : Blob }) -> async http_request_result;
-            context : Blob;
-        };
-        is_replicated : ?Bool;
-        cycles : Nat;
-    };
-
     /// Create user
     /// This can only be done by the logged in user.
-    public func createUser(config : Config__, user : User) : async* () {
+    public func createUser(config : Config, user : User) : async* () {
         let {baseUrl; cycles} = config;
         let baseUrl__ = baseUrl # "/user";
 
@@ -120,7 +103,7 @@ module {
 
     /// Creates list of users with given input array
     /// 
-    public func createUsersWithArrayInput(config : Config__, user : [User]) : async* () {
+    public func createUsersWithArrayInput(config : Config, user : [User]) : async* () {
         let {baseUrl; cycles} = config;
         let baseUrl__ = baseUrl # "/user/createWithArray";
 
@@ -173,7 +156,7 @@ module {
 
     /// Creates list of users with given input array
     /// 
-    public func createUsersWithListInput(config : Config__, user : [User]) : async* () {
+    public func createUsersWithListInput(config : Config, user : [User]) : async* () {
         let {baseUrl; cycles} = config;
         let baseUrl__ = baseUrl # "/user/createWithList";
 
@@ -226,7 +209,7 @@ module {
 
     /// Delete user
     /// This can only be done by the logged in user.
-    public func deleteUser(config : Config__, username : Text) : async* () {
+    public func deleteUser(config : Config, username : Text) : async* () {
         let {baseUrl; cycles} = config;
         let baseUrl__ = baseUrl # "/user/{username}"
             |> Text.replace(_, #text "{username}", username);
@@ -275,7 +258,7 @@ module {
 
     /// Get user by user name
     /// 
-    public func getUserByName(config : Config__, username : Text) : async* User {
+    public func getUserByName(config : Config, username : Text) : async* User {
         let {baseUrl; cycles} = config;
         let baseUrl__ = baseUrl # "/user/{username}"
             |> Text.replace(_, #text "{username}", username);
@@ -365,7 +348,7 @@ module {
 
     /// Logs user into the system
     /// 
-    public func loginUser(config : Config__, username : Text, password : Text) : async* Text {
+    public func loginUser(config : Config, username : Text, password : Text) : async* Text {
         let {baseUrl; cycles} = config;
         let baseUrl__ = baseUrl # "/user/login"
             # "?" # "username=" # username # "&" # "password=" # password;
@@ -446,7 +429,7 @@ module {
 
     /// Logs out current logged in user session
     /// 
-    public func logoutUser(config : Config__) : async* () {
+    public func logoutUser(config : Config) : async* () {
         let {baseUrl; cycles} = config;
         let baseUrl__ = baseUrl # "/user/logout";
 
@@ -494,7 +477,7 @@ module {
 
     /// Updated user
     /// This can only be done by the logged in user.
-    public func updateUser(config : Config__, username : Text, user : User) : async* () {
+    public func updateUser(config : Config, username : Text, user : User) : async* () {
         let {baseUrl; cycles} = config;
         let baseUrl__ = baseUrl # "/user/{username}"
             |> Text.replace(_, #text "{username}", username);
@@ -558,7 +541,7 @@ module {
         updateUser;
     };
 
-    public module class UserApi(config : Config__) {
+    public module class UserApi(config : Config) {
         /// Create user
         /// This can only be done by the logged in user.
         public func createUser(user : User) : async () {

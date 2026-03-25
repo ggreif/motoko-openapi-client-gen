@@ -6,12 +6,13 @@ import Blob "mo:core/Blob";
 import Array "mo:core/Array";
 import Error "mo:core/Error";
 import Base64 "mo:core/Base64";
-import { JSON } "mo:serde";
+import { JSON } "mo:serde-core";
 // FIXME: destructuring on `actor` types is not implemented yet for shared functions
 //        type error [M0114], object pattern cannot consume actor type
 import { type http_request_args; type http_request_result; type http_header } "ic:aaaaa-aa";
 import Mgnt__ = "ic:aaaaa-aa";
 import { type SetPowerPowerParameter; JSON = SetPowerPowerParameter } "../Models/SetPowerPowerParameter";
+import { type Config } "../Config";
 
 module {
     type http_method = {
@@ -28,27 +29,9 @@ module {
     let http_request = Mgnt__.http_request;
 
 
-    public type Auth__ = {
-        #bearer : Text;
-        #apiKey : Text;
-        #basicAuth : { user : Text; password : Text };
-    };
-
-    public type Config__ = {
-        baseUrl : Text;
-        auth : ?Auth__;
-        max_response_bytes : ?Nat64;
-        transform : ?{
-            function : shared query ({ response : http_request_result; context : Blob }) -> async http_request_result;
-            context : Blob;
-        };
-        is_replicated : ?Bool;
-        cycles : Nat;
-    };
-
     /// Enable or disable auto power standby
     /// Sets the auto power standby feature on or off
-    public func setAutoPowerStandby(config : Config__, enable : Bool) : async* Any {
+    public func setAutoPowerStandby(config : Config, enable : Bool) : async* Any {
         let {baseUrl; cycles} = config;
         let baseUrl__ = baseUrl # "/system/setAutoPowerStandby"
             # "?" # "enable=" # debug_show(enable);
@@ -125,7 +108,7 @@ module {
 
     /// Set power status
     /// Turn the zone on, put it in standby, or toggle power
-    public func setPower(config : Config__, zone : Text, power : SetPowerPowerParameter) : async* Any {
+    public func setPower(config : Config, zone : Text, power : SetPowerPowerParameter) : async* Any {
         let {baseUrl; cycles} = config;
         let baseUrl__ = baseUrl # "/{zone}/setPower"
             |> Text.replace(_, #text "{zone}", zone)
@@ -207,7 +190,7 @@ module {
         setPower;
     };
 
-    public module class PowerApi(config : Config__) {
+    public module class PowerApi(config : Config) {
         /// Enable or disable auto power standby
         /// Sets the auto power standby feature on or off
         public func setAutoPowerStandby(enable : Bool) : async Any {

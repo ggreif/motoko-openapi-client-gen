@@ -39,10 +39,35 @@ This is a Motoko module that can be used in your Internet Computer project.
 
 ## Usage
 
-Import the generated modules in your Motoko code:
+Import the generated API modules in your Motoko code:
 
 ```motoko
-import Enum Test API "path/to/generated/modules";
+import SomeApi "mo:enum-test-client/Apis/SomeApi";
+// or using destructuring for specific functions
+import { someFunction } "mo:enum-test-client/Apis/SomeApi";
+```
+
+Configure and call the API:
+
+```motoko
+import { defaultConfig } "mo:enum-test-client/Config";
+
+// Use the default config as-is, or customize specific fields:
+let config = { defaultConfig with auth = ?#bearer "my-token" };
+
+let result = await* SomeApi.someFunction(config, ...);
+```
+
+The `defaultConfig` has `baseUrl` pre-set to the API's base URL, `cycles = 30_000_000_000`, and all optional fields set to `null`.
+
+Alternatively, use the suite-based API to bind config once and call multiple functions without threading it through each call:
+
+```motoko
+import { SomeApi } "mo:enum-test-client/Apis/SomeApi";
+
+let api = SomeApi(config);
+let result = await api.someFunction(...);
+let other = await api.anotherFunction(...);
 ```
 
 ### HTTP Outcalls and Cycles

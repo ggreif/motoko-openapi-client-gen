@@ -1,11 +1,11 @@
 // main.mo - Test canister for generated JSONPlaceholder API client
 
-import { DefaultApi } "../generated/Apis/DefaultApi";
-import { type Post } "../generated/Models/Post";
-import { type PostStatus } "../generated/Models/PostStatus";
-import { type GetEnumStatus200Response } "../generated/Models/GetEnumStatus200Response";
-import { type GeoJsonFeature } "../generated/Models/GeoJsonFeature";
-import { type GeoJsonPolygon } "../generated/Models/GeoJsonPolygon";
+import { DefaultApi } "../generated/src/Apis/DefaultApi";
+import { type Post } "../generated/src/Models/Post";
+import { type PostStatus } "../generated/src/Models/PostStatus";
+import { type GetEnumStatus200Response } "../generated/src/Models/GetEnumStatus200Response";
+import { type GeoJsonFeature } "../generated/src/Models/GeoJsonFeature";
+import { type GeoJsonPolygon } "../generated/src/Models/GeoJsonPolygon";
 import Debug "mo:core/Debug";
 import Array "mo:core/Array";
 import Nat "mo:core/Nat";

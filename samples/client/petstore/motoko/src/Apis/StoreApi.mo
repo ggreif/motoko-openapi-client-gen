@@ -6,69 +6,33 @@ import Blob "mo:core/Blob";
 import Array "mo:core/Array";
 import Error "mo:core/Error";
 import Base64 "mo:core/Base64";
-import { JSON } "mo:serde";
+import { JSON } "mo:serde-core";
+// FIXME: destructuring on `actor` types is not implemented yet for shared functions
+//        type error [M0114], object pattern cannot consume actor type
+import { type http_request_args; type http_request_result; type http_header } "ic:aaaaa-aa";
+import Mgnt__ = "ic:aaaaa-aa";
 import { type Order; JSON = Order } "../Models/Order";
 import { type Map; fromIter } "mo:core/pure/Map";
+import { type Config } "../Config";
 
 module {
-    // Management Canister interface for HTTP outcalls
-    // Based on types in https://github.com/dfinity/sdk/blob/master/src/dfx/src/util/ic.did
-    type http_header = {
-        name : Text;
-        value : Text;
-    };
-
     type http_method = {
         #get;
         #head;
         #post;
-        #put;    // Non-replicated only (is_replicated forced to ?false in generated code)
-        #delete; // Non-replicated only (is_replicated forced to ?false in generated code)
+        // TODO: PUT and DELETE are now supported by the management canister in
+        //   non-replicated mode, but dfx doesn't expose these methods yet.
+        //   Uncomment once dfx support lands:
+        // #put;
+        // #delete;
     };
 
-    type http_request_args = {
-        url : Text;
-        max_response_bytes : ?Nat64;
-        method : http_method;
-        headers : [http_header];
-        body : ?Blob;
-        transform : ?{
-            function : shared query ({ response : http_request_result; context : Blob }) -> async http_request_result;
-            context : Blob;
-        };
-        is_replicated : ?Bool;
-    };
+    let http_request = Mgnt__.http_request;
 
-    type http_request_result = {
-        status : Nat;
-        headers : [http_header];
-        body : Blob;
-    };
-
-    let http_request = (actor "aaaaa-aa" : actor { http_request : (http_request_args) -> async http_request_result }).http_request;
-
-
-    public type Auth__ = {
-        #bearer : Text;
-        #apiKey : Text;
-        #basicAuth : { user : Text; password : Text };
-    };
-
-    public type Config__ = {
-        baseUrl : Text;
-        auth : ?Auth__;
-        max_response_bytes : ?Nat64;
-        transform : ?{
-            function : shared query ({ response : http_request_result; context : Blob }) -> async http_request_result;
-            context : Blob;
-        };
-        is_replicated : ?Bool;
-        cycles : Nat;
-    };
 
     /// Delete purchase order by ID
     /// For valid response try integer IDs with value < 1000. Anything above 1000 or nonintegers will generate API errors
-    public func deleteOrder(config : Config__, orderId : Text) : async* () {
+    public func deleteOrder(config : Config, orderId : Text) : async* () {
         let {baseUrl; cycles} = config;
         let baseUrl__ = baseUrl # "/store/order/{orderId}"
             |> Text.replace(_, #text "{orderId}", orderId);
@@ -117,7 +81,7 @@ module {
 
     /// Returns pet inventories by status
     /// Returns a map of status codes to quantities
-    public func getInventory(config : Config__) : async* Map<Text, Int> {
+    public func getInventory(config : Config) : async* Map<Text, Int> {
         let {baseUrl; cycles} = config;
         let baseUrl__ = baseUrl # "/store/inventory";
 
@@ -193,7 +157,7 @@ module {
 
     /// Find purchase order by ID
     /// For valid response try integer IDs with value <= 5 or > 10. Other values will generate exceptions
-    public func getOrderById(config : Config__, orderId : Nat) : async* Order {
+    public func getOrderById(config : Config, orderId : Nat) : async* Order {
         let {baseUrl; cycles} = config;
         let baseUrl__ = baseUrl # "/store/order/{orderId}"
             |> Text.replace(_, #text "{orderId}", debug_show(orderId));
@@ -283,7 +247,7 @@ module {
 
     /// Place an order for a pet
     /// 
-    public func placeOrder(config : Config__, order : Order) : async* Order {
+    public func placeOrder(config : Config, order : Order) : async* Order {
         let {baseUrl; cycles} = config;
         let baseUrl__ = baseUrl # "/store/order";
 
@@ -379,7 +343,7 @@ module {
         placeOrder;
     };
 
-    public module class StoreApi(config : Config__) {
+    public module class StoreApi(config : Config) {
         /// Delete purchase order by ID
         /// For valid response try integer IDs with value < 1000. Anything above 1000 or nonintegers will generate API errors
         public func deleteOrder(orderId : Text) : async () {

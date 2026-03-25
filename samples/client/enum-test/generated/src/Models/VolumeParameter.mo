@@ -5,6 +5,7 @@ import Int "mo:core/Int";
 
 // VolumeParameter.mo
 /// Volume control parameter - discriminated union of integer value or direction
+import Runtime "mo:core/Runtime";
 
 module {
     // User-facing type: discriminated union (oneOf)

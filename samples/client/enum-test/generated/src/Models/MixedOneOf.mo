@@ -7,6 +7,7 @@ import Int "mo:core/Int";
 
 // MixedOneOf.mo
 /// Complex oneOf with enum, integer, and object types
+import Runtime "mo:core/Runtime";
 
 module {
     // User-facing type: discriminated union (oneOf)
@@ -23,7 +24,7 @@ module {
             switch (value) {
                 case (#one_of_0(v)) Int.toText(v);
                 case (#SimpleColorEnum(v)) SimpleColorEnum.toJSON(v);
-                case (#MixedOneOfOneOf(v)) debug_show(v);
+                case (#MixedOneOfOneOf(v)) Runtime.unreachable();
             };
 
         // JSON-facing Motoko type: mirrors JSON structure

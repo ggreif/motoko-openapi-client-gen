@@ -4,6 +4,7 @@ import { type SetVolumeVolumeParameterOneOf; JSON = SetVolumeVolumeParameterOneO
 import Int "mo:core/Int";
 
 // SetVolumeVolumeParameter.mo
+import Runtime "mo:core/Runtime";
 
 module {
     // User-facing type: discriminated union (oneOf)

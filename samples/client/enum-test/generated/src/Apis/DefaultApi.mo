@@ -1,4 +1,4 @@
-// ZoneApi.mo
+// DefaultApi.mo
 
 import Text "mo:core/Text";
 import Int "mo:core/Int";
@@ -6,54 +6,62 @@ import Blob "mo:core/Blob";
 import Array "mo:core/Array";
 import Error "mo:core/Error";
 import Base64 "mo:core/Base64";
-import { JSON } "mo:serde";
-// FIXME: destructuring on `actor` types is not implemented yet for shared functions
-//        type error [M0114], object pattern cannot consume actor type
-import { type http_request_args; type http_request_result; type http_header } "ic:aaaaa-aa";
-import Mgnt__ = "ic:aaaaa-aa";
-import { type SetInputInputParameter; JSON = SetInputInputParameter } "../Models/SetInputInputParameter";
-import { type SetInputModeParameter; JSON = SetInputModeParameter } "../Models/SetInputModeParameter";
-import { type SetVolumeVolumeParameter; JSON = SetVolumeVolumeParameter } "../Models/SetVolumeVolumeParameter";
+import { JSON } "mo:serde-core";
+import { type HttpHeader; JSON = HttpHeader } "../Models/HttpHeader";
+import { type MixedOneOf; JSON = MixedOneOf } "../Models/MixedOneOf";
+import { type OuterRecord; JSON = OuterRecord } "../Models/OuterRecord";
+import { type ReservedWordModel; JSON = ReservedWordModel } "../Models/ReservedWordModel";
+import { type SetVolume200Response; JSON = SetVolume200Response } "../Models/SetVolume200Response";
+import { type TestHyphenatedEnumRequest; JSON = TestHyphenatedEnumRequest } "../Models/TestHyphenatedEnumRequest";
+import { type TestMixedOneOf200Response; JSON = TestMixedOneOf200Response } "../Models/TestMixedOneOf200Response";
+import { type TestNumericEnumRequest; JSON = TestNumericEnumRequest } "../Models/TestNumericEnumRequest";
+import { type TestOneOfVariantRequest; JSON = TestOneOfVariantRequest } "../Models/TestOneOfVariantRequest";
+import { type VolumeParameter; JSON = VolumeParameter } "../Models/VolumeParameter";
+import { type Config } "../Config";
 
 module {
+    // Management Canister interface for HTTP outcalls
+    // Based on types in https://github.com/dfinity/sdk/blob/master/src/dfx/src/util/ic.did
+    type http_header = {
+        name : Text;
+        value : Text;
+    };
+
     type http_method = {
         #get;
         #head;
         #post;
-        // TODO: PUT and DELETE are now supported by the management canister in
-        //   non-replicated mode, but dfx doesn't expose these methods yet.
-        //   Uncomment once dfx support lands:
-        // #put;
-        // #delete;
+        #put;    // Non-replicated only (is_replicated forced to ?false in generated code)
+        #delete; // Non-replicated only (is_replicated forced to ?false in generated code)
     };
 
-    let http_request = Mgnt__.http_request;
-
-
-    public type Auth__ = {
-        #bearer : Text;
-        #apiKey : Text;
-        #basicAuth : { user : Text; password : Text };
-    };
-
-    public type Config__ = {
-        baseUrl : Text;
-        auth : ?Auth__;
+    type http_request_args = {
+        url : Text;
         max_response_bytes : ?Nat64;
+        method : http_method;
+        headers : [http_header];
+        body : ?Blob;
         transform : ?{
             function : shared query ({ response : http_request_result; context : Blob }) -> async http_request_result;
             context : Blob;
         };
         is_replicated : ?Bool;
-        cycles : Nat;
     };
 
-    /// Get sound program list
-    /// Returns the list of available sound programs for the zone
-    public func getSoundProgramList(config : Config__, zone : Text) : async* Any {
+    type http_request_result = {
+        status : Nat;
+        headers : [http_header];
+        body : Blob;
+    };
+
+    let http_request = (actor "aaaaa-aa" : actor { http_request : (http_request_args) -> async http_request_result }).http_request;
+
+
+    /// Set volume with oneOf query parameter
+    public func setVolume(config : Config, volume : VolumeParameter, zone : Text) : async* SetVolume200Response {
         let {baseUrl; cycles} = config;
-        let baseUrl__ = baseUrl # "/{zone}/getSoundProgramList"
-            |> Text.replace(_, #text "{zone}", zone);
+        let baseUrl__ = baseUrl # "/set-volume"
+            # "?" # "volume=" # VolumeParameter.toText(volume) # "&" # "zone=" # zone;
 
         // Add API key as query parameter if using apiKey auth
         let url = switch (config.auth) {
@@ -106,9 +114,14 @@ module {
                 case (#ok(blob)) blob;
                 case (#err(msg)) throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to parse JSON: " # msg);
             }) |>
-            from_candid(_) : ?Any |>
+            from_candid(_) : ?SetVolume200Response.JSON |>
             (switch (_) {
-                case (?result) result;
+                case (?jsonValue) {
+                    switch (SetVolume200Response.fromJSON(jsonValue)) {
+                        case (?value) value;
+                        case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to convert response to SetVolume200Response");
+                    }
+                };
                 case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response");
             })
         } else {
@@ -125,12 +138,10 @@ module {
         }
     };
 
-    /// Get zone status
-    /// Returns the current status of the specified zone
-    public func getZoneStatus(config : Config__, zone : Text) : async* Any {
+    /// Test record fields with hyphens
+    public func testEscapedFields(config : Config, httpHeader : HttpHeader) : async* HttpHeader {
         let {baseUrl; cycles} = config;
-        let baseUrl__ = baseUrl # "/{zone}/getStatus"
-            |> Text.replace(_, #text "{zone}", zone);
+        let baseUrl__ = baseUrl # "/test-escaped-fields";
 
         // Add API key as query parameter if using apiKey auth
         let url = switch (config.auth) {
@@ -164,9 +175,14 @@ module {
 
         let request : http_request_args = { config with
             url;
-            method = #get;
+            method = #post;
             headers;
-            body = null;
+            body = do ? {
+                let jsonValue = HttpHeader.toJSON(httpHeader);
+                let candidBlob = to_candid(jsonValue);
+                let #ok(jsonText) = JSON.toText(candidBlob, [], null) else throw Error.reject("Failed to serialize to JSON");
+                Text.encodeUtf8(jsonText)
+            };
         };
 
         // Call the management canister's http_request method with cycles
@@ -183,9 +199,14 @@ module {
                 case (#ok(blob)) blob;
                 case (#err(msg)) throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to parse JSON: " # msg);
             }) |>
-            from_candid(_) : ?Any |>
+            from_candid(_) : ?HttpHeader.JSON |>
             (switch (_) {
-                case (?result) result;
+                case (?jsonValue) {
+                    switch (HttpHeader.fromJSON(jsonValue)) {
+                        case (?value) value;
+                        case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to convert response to HttpHeader");
+                    }
+                };
                 case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response");
             })
         } else {
@@ -202,13 +223,10 @@ module {
         }
     };
 
-    /// Prepare input change
-    /// Let a device do necessary process before changing input in a specific zone
-    public func prepareInputChange(config : Config__, zone : Text, input : Text) : async* Any {
+    /// Test hyphenated enum values
+    public func testHyphenatedEnum(config : Config, testHyphenatedEnumRequest : TestHyphenatedEnumRequest) : async* TestHyphenatedEnumRequest {
         let {baseUrl; cycles} = config;
-        let baseUrl__ = baseUrl # "/{zone}/prepareInputChange"
-            |> Text.replace(_, #text "{zone}", zone)
-            # "?" # "input=" # input;
+        let baseUrl__ = baseUrl # "/test-hyphenated-enum";
 
         // Add API key as query parameter if using apiKey auth
         let url = switch (config.auth) {
@@ -242,9 +260,14 @@ module {
 
         let request : http_request_args = { config with
             url;
-            method = #get;
+            method = #post;
             headers;
-            body = null;
+            body = do ? {
+                let jsonValue = TestHyphenatedEnumRequest.toJSON(testHyphenatedEnumRequest);
+                let candidBlob = to_candid(jsonValue);
+                let #ok(jsonText) = JSON.toText(candidBlob, [], null) else throw Error.reject("Failed to serialize to JSON");
+                Text.encodeUtf8(jsonText)
+            };
         };
 
         // Call the management canister's http_request method with cycles
@@ -261,9 +284,14 @@ module {
                 case (#ok(blob)) blob;
                 case (#err(msg)) throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to parse JSON: " # msg);
             }) |>
-            from_candid(_) : ?Any |>
+            from_candid(_) : ?TestHyphenatedEnumRequest.JSON |>
             (switch (_) {
-                case (?result) result;
+                case (?jsonValue) {
+                    switch (TestHyphenatedEnumRequest.fromJSON(jsonValue)) {
+                        case (?value) value;
+                        case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to convert response to TestHyphenatedEnumRequest");
+                    }
+                };
                 case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response");
             })
         } else {
@@ -280,13 +308,11 @@ module {
         }
     };
 
-    /// Set input source
-    /// Sets the input source for the zone
-    public func setInput(config : Config__, zone : Text, input : SetInputInputParameter, mode : SetInputModeParameter) : async* Any {
+    /// Test mixed oneOf as query parameter
+    public func testMixedOneOf(config : Config, value : MixedOneOf) : async* TestMixedOneOf200Response {
         let {baseUrl; cycles} = config;
-        let baseUrl__ = baseUrl # "/{zone}/setInput"
-            |> Text.replace(_, #text "{zone}", zone)
-            # "?" # "input=" # SetInputInputParameter.toJSON(input) # "&" # "mode=" # SetInputModeParameter.toJSON(mode);
+        let baseUrl__ = baseUrl # "/test-mixed-oneof"
+            # "?" # "value=" # MixedOneOf.toText(value);
 
         // Add API key as query parameter if using apiKey auth
         let url = switch (config.auth) {
@@ -339,9 +365,14 @@ module {
                 case (#ok(blob)) blob;
                 case (#err(msg)) throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to parse JSON: " # msg);
             }) |>
-            from_candid(_) : ?Any |>
+            from_candid(_) : ?TestMixedOneOf200Response.JSON |>
             (switch (_) {
-                case (?result) result;
+                case (?jsonValue) {
+                    switch (TestMixedOneOf200Response.fromJSON(jsonValue)) {
+                        case (?value) value;
+                        case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to convert response to TestMixedOneOf200Response");
+                    }
+                };
                 case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response");
             })
         } else {
@@ -358,13 +389,10 @@ module {
         }
     };
 
-    /// Set mute
-    /// Enables or disables mute for the zone
-    public func setMute(config : Config__, zone : Text, enable : Bool) : async* Any {
+    /// Test numeric enum values
+    public func testNumericEnum(config : Config, testNumericEnumRequest : TestNumericEnumRequest) : async* TestNumericEnumRequest {
         let {baseUrl; cycles} = config;
-        let baseUrl__ = baseUrl # "/{zone}/setMute"
-            |> Text.replace(_, #text "{zone}", zone)
-            # "?" # "enable=" # debug_show(enable);
+        let baseUrl__ = baseUrl # "/test-numeric-enum";
 
         // Add API key as query parameter if using apiKey auth
         let url = switch (config.auth) {
@@ -398,9 +426,14 @@ module {
 
         let request : http_request_args = { config with
             url;
-            method = #get;
+            method = #post;
             headers;
-            body = null;
+            body = do ? {
+                let jsonValue = TestNumericEnumRequest.toJSON(testNumericEnumRequest);
+                let candidBlob = to_candid(jsonValue);
+                let #ok(jsonText) = JSON.toText(candidBlob, [], null) else throw Error.reject("Failed to serialize to JSON");
+                Text.encodeUtf8(jsonText)
+            };
         };
 
         // Call the management canister's http_request method with cycles
@@ -417,9 +450,14 @@ module {
                 case (#ok(blob)) blob;
                 case (#err(msg)) throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to parse JSON: " # msg);
             }) |>
-            from_candid(_) : ?Any |>
+            from_candid(_) : ?TestNumericEnumRequest.JSON |>
             (switch (_) {
-                case (?result) result;
+                case (?jsonValue) {
+                    switch (TestNumericEnumRequest.fromJSON(jsonValue)) {
+                        case (?value) value;
+                        case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to convert response to TestNumericEnumRequest");
+                    }
+                };
                 case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response");
             })
         } else {
@@ -436,13 +474,10 @@ module {
         }
     };
 
-    /// Set sleep timer
-    /// Sets the sleep timer in minutes (0 to cancel)
-    public func setSleep(config : Config__, zone : Text, sleep : Nat) : async* Any {
+    /// Test oneOf discriminated union (similar to Yamaha volume parameter)
+    public func testOneOfVariant(config : Config, testOneOfVariantRequest : TestOneOfVariantRequest) : async* TestOneOfVariantRequest {
         let {baseUrl; cycles} = config;
-        let baseUrl__ = baseUrl # "/{zone}/setSleep"
-            |> Text.replace(_, #text "{zone}", zone)
-            # "?" # "sleep=" # Int.toText(sleep);
+        let baseUrl__ = baseUrl # "/test-oneof-variant";
 
         // Add API key as query parameter if using apiKey auth
         let url = switch (config.auth) {
@@ -476,9 +511,14 @@ module {
 
         let request : http_request_args = { config with
             url;
-            method = #get;
+            method = #post;
             headers;
-            body = null;
+            body = do ? {
+                let jsonValue = TestOneOfVariantRequest.toJSON(testOneOfVariantRequest);
+                let candidBlob = to_candid(jsonValue);
+                let #ok(jsonText) = JSON.toText(candidBlob, [], null) else throw Error.reject("Failed to serialize to JSON");
+                Text.encodeUtf8(jsonText)
+            };
         };
 
         // Call the management canister's http_request method with cycles
@@ -495,9 +535,14 @@ module {
                 case (#ok(blob)) blob;
                 case (#err(msg)) throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to parse JSON: " # msg);
             }) |>
-            from_candid(_) : ?Any |>
+            from_candid(_) : ?TestOneOfVariantRequest.JSON |>
             (switch (_) {
-                case (?result) result;
+                case (?jsonValue) {
+                    switch (TestOneOfVariantRequest.fromJSON(jsonValue)) {
+                        case (?value) value;
+                        case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to convert response to TestOneOfVariantRequest");
+                    }
+                };
                 case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response");
             })
         } else {
@@ -514,13 +559,10 @@ module {
         }
     };
 
-    /// Set sound program
-    /// Sets the sound program (DSP mode) for the zone
-    public func setSoundProgram(config : Config__, zone : Text, program : Text) : async* Any {
+    /// Test reserved word field names
+    public func testReservedWords(config : Config, reservedWordModel : ReservedWordModel) : async* ReservedWordModel {
         let {baseUrl; cycles} = config;
-        let baseUrl__ = baseUrl # "/{zone}/setSoundProgram"
-            |> Text.replace(_, #text "{zone}", zone)
-            # "?" # "program=" # program;
+        let baseUrl__ = baseUrl # "/test-reserved-words";
 
         // Add API key as query parameter if using apiKey auth
         let url = switch (config.auth) {
@@ -554,9 +596,14 @@ module {
 
         let request : http_request_args = { config with
             url;
-            method = #get;
+            method = #post;
             headers;
-            body = null;
+            body = do ? {
+                let jsonValue = ReservedWordModel.toJSON(reservedWordModel);
+                let candidBlob = to_candid(jsonValue);
+                let #ok(jsonText) = JSON.toText(candidBlob, [], null) else throw Error.reject("Failed to serialize to JSON");
+                Text.encodeUtf8(jsonText)
+            };
         };
 
         // Call the management canister's http_request method with cycles
@@ -573,9 +620,14 @@ module {
                 case (#ok(blob)) blob;
                 case (#err(msg)) throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to parse JSON: " # msg);
             }) |>
-            from_candid(_) : ?Any |>
+            from_candid(_) : ?ReservedWordModel.JSON |>
             (switch (_) {
-                case (?result) result;
+                case (?jsonValue) {
+                    switch (ReservedWordModel.fromJSON(jsonValue)) {
+                        case (?value) value;
+                        case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to convert response to ReservedWordModel");
+                    }
+                };
                 case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response");
             })
         } else {
@@ -592,13 +644,10 @@ module {
         }
     };
 
-    /// Set volume
-    /// Sets the volume level directly or incrementally
-    public func setVolume(config : Config__, zone : Text, volume : SetVolumeVolumeParameter, step : Nat) : async* Any {
+    /// Test transitive enum references (Record containing Record containing Enum)
+    public func testTransitiveEnum(config : Config, outerRecord : OuterRecord) : async* OuterRecord {
         let {baseUrl; cycles} = config;
-        let baseUrl__ = baseUrl # "/{zone}/setVolume"
-            |> Text.replace(_, #text "{zone}", zone)
-            # "?" # "volume=" # SetVolumeVolumeParameter.toText(volume) # "&" # "step=" # Int.toText(step);
+        let baseUrl__ = baseUrl # "/test-transitive-enum";
 
         // Add API key as query parameter if using apiKey auth
         let url = switch (config.auth) {
@@ -632,9 +681,14 @@ module {
 
         let request : http_request_args = { config with
             url;
-            method = #get;
+            method = #post;
             headers;
-            body = null;
+            body = do ? {
+                let jsonValue = OuterRecord.toJSON(outerRecord);
+                let candidBlob = to_candid(jsonValue);
+                let #ok(jsonText) = JSON.toText(candidBlob, [], null) else throw Error.reject("Failed to serialize to JSON");
+                Text.encodeUtf8(jsonText)
+            };
         };
 
         // Call the management canister's http_request method with cycles
@@ -651,9 +705,14 @@ module {
                 case (#ok(blob)) blob;
                 case (#err(msg)) throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to parse JSON: " # msg);
             }) |>
-            from_candid(_) : ?Any |>
+            from_candid(_) : ?OuterRecord.JSON |>
             (switch (_) {
-                case (?result) result;
+                case (?jsonValue) {
+                    switch (OuterRecord.fromJSON(jsonValue)) {
+                        case (?value) value;
+                        case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to convert response to OuterRecord");
+                    }
+                };
                 case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response");
             })
         } else {
@@ -672,63 +731,55 @@ module {
 
 
     let operations__ = {
-        getSoundProgramList;
-        getZoneStatus;
-        prepareInputChange;
-        setInput;
-        setMute;
-        setSleep;
-        setSoundProgram;
         setVolume;
+        testEscapedFields;
+        testHyphenatedEnum;
+        testMixedOneOf;
+        testNumericEnum;
+        testOneOfVariant;
+        testReservedWords;
+        testTransitiveEnum;
     };
 
-    public module class ZoneApi(config : Config__) {
-        /// Get sound program list
-        /// Returns the list of available sound programs for the zone
-        public func getSoundProgramList(zone : Text) : async Any {
-            await* operations__.getSoundProgramList(config, zone)
+    public module class DefaultApi(config : Config) {
+        /// Set volume with oneOf query parameter
+        public func setVolume(volume : VolumeParameter, zone : Text) : async SetVolume200Response {
+            await* operations__.setVolume(config, volume, zone)
         };
 
-        /// Get zone status
-        /// Returns the current status of the specified zone
-        public func getZoneStatus(zone : Text) : async Any {
-            await* operations__.getZoneStatus(config, zone)
+        /// Test record fields with hyphens
+        public func testEscapedFields(httpHeader : HttpHeader) : async HttpHeader {
+            await* operations__.testEscapedFields(config, httpHeader)
         };
 
-        /// Prepare input change
-        /// Let a device do necessary process before changing input in a specific zone
-        public func prepareInputChange(zone : Text, input : Text) : async Any {
-            await* operations__.prepareInputChange(config, zone, input)
+        /// Test hyphenated enum values
+        public func testHyphenatedEnum(testHyphenatedEnumRequest : TestHyphenatedEnumRequest) : async TestHyphenatedEnumRequest {
+            await* operations__.testHyphenatedEnum(config, testHyphenatedEnumRequest)
         };
 
-        /// Set input source
-        /// Sets the input source for the zone
-        public func setInput(zone : Text, input : SetInputInputParameter, mode : SetInputModeParameter) : async Any {
-            await* operations__.setInput(config, zone, input, mode)
+        /// Test mixed oneOf as query parameter
+        public func testMixedOneOf(value : MixedOneOf) : async TestMixedOneOf200Response {
+            await* operations__.testMixedOneOf(config, value)
         };
 
-        /// Set mute
-        /// Enables or disables mute for the zone
-        public func setMute(zone : Text, enable : Bool) : async Any {
-            await* operations__.setMute(config, zone, enable)
+        /// Test numeric enum values
+        public func testNumericEnum(testNumericEnumRequest : TestNumericEnumRequest) : async TestNumericEnumRequest {
+            await* operations__.testNumericEnum(config, testNumericEnumRequest)
         };
 
-        /// Set sleep timer
-        /// Sets the sleep timer in minutes (0 to cancel)
-        public func setSleep(zone : Text, sleep : Nat) : async Any {
-            await* operations__.setSleep(config, zone, sleep)
+        /// Test oneOf discriminated union (similar to Yamaha volume parameter)
+        public func testOneOfVariant(testOneOfVariantRequest : TestOneOfVariantRequest) : async TestOneOfVariantRequest {
+            await* operations__.testOneOfVariant(config, testOneOfVariantRequest)
         };
 
-        /// Set sound program
-        /// Sets the sound program (DSP mode) for the zone
-        public func setSoundProgram(zone : Text, program : Text) : async Any {
-            await* operations__.setSoundProgram(config, zone, program)
+        /// Test reserved word field names
+        public func testReservedWords(reservedWordModel : ReservedWordModel) : async ReservedWordModel {
+            await* operations__.testReservedWords(config, reservedWordModel)
         };
 
-        /// Set volume
-        /// Sets the volume level directly or incrementally
-        public func setVolume(zone : Text, volume : SetVolumeVolumeParameter, step : Nat) : async Any {
-            await* operations__.setVolume(config, zone, volume, step)
+        /// Test transitive enum references (Record containing Record containing Enum)
+        public func testTransitiveEnum(outerRecord : OuterRecord) : async OuterRecord {
+            await* operations__.testTransitiveEnum(config, outerRecord)
         };
 
     }

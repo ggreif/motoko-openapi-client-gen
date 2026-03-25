@@ -12,7 +12,7 @@ echo ""
 FAILED=0
 PASSED=0
 
-for file in Models/*.mo Apis/*.mo; do
+for file in src/Config.mo src/Models/*.mo src/Apis/*.mo; do
   echo "Checking $file..."
   if moc --check $PACKAGE_FLAGS "$file" 2>&1; then
     echo "✓ OK"

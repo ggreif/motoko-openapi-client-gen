@@ -1,11 +1,10 @@
-import { testBearer; getHeaders; testApiKeyHeader; testApiKeyQuery; testBasicAuth; type Auth__; type Config__ } "./generated/Apis/DefaultApi";
+import { testBearer; getHeaders; testApiKeyHeader; testApiKeyQuery; testBasicAuth } "./generated/src/Apis/DefaultApi";
+import { type Auth; type Config } "./generated/src/Config";
 import Debug "mo:core/Debug";
 import Text "mo:core/Text";
 import Error "mo:core/Error";
 
 persistent actor HttpBinAuthTest {
-    type Auth = Auth__;
-    type Config = Config__;
 
     type http_request_result = {
         status : Nat;
