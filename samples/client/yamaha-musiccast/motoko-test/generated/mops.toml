@@ -1,5 +1,5 @@
 [toolchain]
-moc = "1.3.0"
+moc = "1.4.1"
 
 [package]
 name = "yamaha-musiccast-client"
@@ -9,11 +9,10 @@ license = "Apache-2.0"
 files = ["src/Config.mo", "src/Apis/**/*.mo", "src/Models/**/*.mo"]
 
 [dependencies]
-core = "2.3.1"
-serde-core = "0.0.1"
+core = "2.4.0"
+serde-core = "0.0.2"
 "cbor@4.1.0" = "4.1.0"
 "itertools@0.2.2" = "0.2.2" # because for serde-core
 base = "0.14.13" # because serde-core uses json.mo submodule
 xtended-numbers = "2.3.0"
-"xtended-numbers@2.3.0" = "2.3.0" # because for ByteUtils (inlined in serde-core)
 "sha2@0.1.6" = "0.1.6"
