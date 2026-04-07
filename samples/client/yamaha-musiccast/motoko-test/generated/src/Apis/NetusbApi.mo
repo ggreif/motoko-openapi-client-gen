@@ -6,7 +6,7 @@ import Blob "mo:core/Blob";
 import Array "mo:core/Array";
 import Error "mo:core/Error";
 import Base64 "mo:core/Base64";
-import { JSON } "mo:serde-core";
+import { JSON } "mo:serde";
 // FIXME: destructuring on `actor` types is not implemented yet for shared functions
 //        type error [M0114], object pattern cannot consume actor type
 import { type http_request_args; type http_request_result; type http_header } "ic:aaaaa-aa";
@@ -29,6 +29,7 @@ module {
 
 
     /// Get account status
+    ///
     /// Returns the account status for streaming services
     public func getAccountStatus(config : Config) : async* Any {
         let {baseUrl; cycles} = config;
@@ -105,6 +106,7 @@ module {
     };
 
     /// Get list info
+    ///
     /// Retrieves metadata and list entries for browsing
     public func getListInfo(config : Config, input : Text, index : Nat, size : Nat, lang : Text) : async* Any {
         let {baseUrl; cycles} = config;
@@ -182,6 +184,7 @@ module {
     };
 
     /// Get current playing info
+    ///
     /// Returns information about the currently playing network/USB content including metadata and image link
     public func getNetUsbPlayInfo(config : Config) : async* Any {
         let {baseUrl; cycles} = config;
@@ -258,6 +261,7 @@ module {
     };
 
     /// Get network/USB preset info
+    ///
     /// Returns information about network and USB presets
     public func getNetUsbPresetInfo(config : Config) : async* Any {
         let {baseUrl; cycles} = config;
@@ -334,6 +338,7 @@ module {
     };
 
     /// Recall system preset
+    ///
     /// Recalls a saved system preset (for any source)
     public func recallNetUsbPreset(config : Config, zone : Text, num : Nat) : async* Any {
         let {baseUrl; cycles} = config;
@@ -411,6 +416,7 @@ module {
     };
 
     /// Store system preset
+    ///
     /// Stores the current state as a system preset
     public func storeNetUsbPreset(config : Config, num : Nat) : async* Any {
         let {baseUrl; cycles} = config;
@@ -499,36 +505,42 @@ module {
 
     public module class NetusbApi(config : Config) {
         /// Get account status
+        ///
         /// Returns the account status for streaming services
         public func getAccountStatus() : async Any {
             await* operations__.getAccountStatus(config)
         };
 
         /// Get list info
+        ///
         /// Retrieves metadata and list entries for browsing
         public func getListInfo(input : Text, index : Nat, size : Nat, lang : Text) : async Any {
             await* operations__.getListInfo(config, input, index, size, lang)
         };
 
         /// Get current playing info
+        ///
         /// Returns information about the currently playing network/USB content including metadata and image link
         public func getNetUsbPlayInfo() : async Any {
             await* operations__.getNetUsbPlayInfo(config)
         };
 
         /// Get network/USB preset info
+        ///
         /// Returns information about network and USB presets
         public func getNetUsbPresetInfo() : async Any {
             await* operations__.getNetUsbPresetInfo(config)
         };
 
         /// Recall system preset
+        ///
         /// Recalls a saved system preset (for any source)
         public func recallNetUsbPreset(zone : Text, num : Nat) : async Any {
             await* operations__.recallNetUsbPreset(config, zone, num)
         };
 
         /// Store system preset
+        ///
         /// Stores the current state as a system preset
         public func storeNetUsbPreset(num : Nat) : async Any {
             await* operations__.storeNetUsbPreset(config, num)

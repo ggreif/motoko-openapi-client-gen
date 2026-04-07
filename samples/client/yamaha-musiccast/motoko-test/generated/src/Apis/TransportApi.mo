@@ -6,7 +6,7 @@ import Blob "mo:core/Blob";
 import Array "mo:core/Array";
 import Error "mo:core/Error";
 import Base64 "mo:core/Base64";
-import { JSON } "mo:serde-core";
+import { JSON } "mo:serde";
 // FIXME: destructuring on `actor` types is not implemented yet for shared functions
 //        type error [M0114], object pattern cannot consume actor type
 import { type http_request_args; type http_request_result; type http_header } "ic:aaaaa-aa";
@@ -30,6 +30,7 @@ module {
 
 
     /// Control playback
+    ///
     /// Controls playback and transport functions
     public func setPlayback(config : Config, playback : SetPlaybackPlaybackParameter) : async* Any {
         let {baseUrl; cycles} = config;
@@ -107,6 +108,7 @@ module {
     };
 
     /// Toggle repeat mode
+    ///
     /// Toggles the repeat playback mode
     public func toggleRepeat(config : Config) : async* Any {
         let {baseUrl; cycles} = config;
@@ -183,6 +185,7 @@ module {
     };
 
     /// Toggle shuffle mode
+    ///
     /// Toggles the shuffle playback mode
     public func toggleShuffle(config : Config) : async* Any {
         let {baseUrl; cycles} = config;
@@ -267,18 +270,21 @@ module {
 
     public module class TransportApi(config : Config) {
         /// Control playback
+        ///
         /// Controls playback and transport functions
         public func setPlayback(playback : SetPlaybackPlaybackParameter) : async Any {
             await* operations__.setPlayback(config, playback)
         };
 
         /// Toggle repeat mode
+        ///
         /// Toggles the repeat playback mode
         public func toggleRepeat() : async Any {
             await* operations__.toggleRepeat(config)
         };
 
         /// Toggle shuffle mode
+        ///
         /// Toggles the shuffle playback mode
         public func toggleShuffle() : async Any {
             await* operations__.toggleShuffle(config)

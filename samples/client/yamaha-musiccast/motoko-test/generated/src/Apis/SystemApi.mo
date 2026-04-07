@@ -6,7 +6,7 @@ import Blob "mo:core/Blob";
 import Array "mo:core/Array";
 import Error "mo:core/Error";
 import Base64 "mo:core/Base64";
-import { JSON } "mo:serde-core";
+import { JSON } "mo:serde";
 // FIXME: destructuring on `actor` types is not implemented yet for shared functions
 //        type error [M0114], object pattern cannot consume actor type
 import { type http_request_args; type http_request_result; type http_header } "ic:aaaaa-aa";
@@ -29,6 +29,7 @@ module {
 
 
     /// Get device information
+    ///
     /// Returns basic device information including model, version, etc.
     public func getDeviceInfo(config : Config) : async* Any {
         let {baseUrl; cycles} = config;
@@ -105,6 +106,7 @@ module {
     };
 
     /// Get available device features
+    ///
     /// Returns the available features and capabilities of the MusicCast device
     public func getFeatures(config : Config) : async* Any {
         let {baseUrl; cycles} = config;
@@ -181,6 +183,7 @@ module {
     };
 
     /// Get function status
+    ///
     /// Returns function status (e.g., Auto Power Standby)
     public func getFuncStatus(config : Config) : async* Any {
         let {baseUrl; cycles} = config;
@@ -257,6 +260,7 @@ module {
     };
 
     /// Get location info and zone list
+    ///
     /// Returns location information and available zones on the device
     public func getLocationInfo(config : Config) : async* Any {
         let {baseUrl; cycles} = config;
@@ -333,6 +337,7 @@ module {
     };
 
     /// Get network status
+    ///
     /// Returns the current network status of the device
     public func getNetworkStatus(config : Config) : async* Any {
         let {baseUrl; cycles} = config;
@@ -419,30 +424,35 @@ module {
 
     public module class SystemApi(config : Config) {
         /// Get device information
+        ///
         /// Returns basic device information including model, version, etc.
         public func getDeviceInfo() : async Any {
             await* operations__.getDeviceInfo(config)
         };
 
         /// Get available device features
+        ///
         /// Returns the available features and capabilities of the MusicCast device
         public func getFeatures() : async Any {
             await* operations__.getFeatures(config)
         };
 
         /// Get function status
+        ///
         /// Returns function status (e.g., Auto Power Standby)
         public func getFuncStatus() : async Any {
             await* operations__.getFuncStatus(config)
         };
 
         /// Get location info and zone list
+        ///
         /// Returns location information and available zones on the device
         public func getLocationInfo() : async Any {
             await* operations__.getLocationInfo(config)
         };
 
         /// Get network status
+        ///
         /// Returns the current network status of the device
         public func getNetworkStatus() : async Any {
             await* operations__.getNetworkStatus(config)

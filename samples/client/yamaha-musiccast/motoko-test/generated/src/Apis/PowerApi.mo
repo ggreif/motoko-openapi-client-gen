@@ -6,7 +6,7 @@ import Blob "mo:core/Blob";
 import Array "mo:core/Array";
 import Error "mo:core/Error";
 import Base64 "mo:core/Base64";
-import { JSON } "mo:serde-core";
+import { JSON } "mo:serde";
 // FIXME: destructuring on `actor` types is not implemented yet for shared functions
 //        type error [M0114], object pattern cannot consume actor type
 import { type http_request_args; type http_request_result; type http_header } "ic:aaaaa-aa";
@@ -30,6 +30,7 @@ module {
 
 
     /// Enable or disable auto power standby
+    ///
     /// Sets the auto power standby feature on or off
     public func setAutoPowerStandby(config : Config, enable : Bool) : async* Any {
         let {baseUrl; cycles} = config;
@@ -107,6 +108,7 @@ module {
     };
 
     /// Set power status
+    ///
     /// Turn the zone on, put it in standby, or toggle power
     public func setPower(config : Config, zone : Text, power : SetPowerPowerParameter) : async* Any {
         let {baseUrl; cycles} = config;
@@ -192,12 +194,14 @@ module {
 
     public module class PowerApi(config : Config) {
         /// Enable or disable auto power standby
+        ///
         /// Sets the auto power standby feature on or off
         public func setAutoPowerStandby(enable : Bool) : async Any {
             await* operations__.setAutoPowerStandby(config, enable)
         };
 
         /// Set power status
+        ///
         /// Turn the zone on, put it in standby, or toggle power
         public func setPower(zone : Text, power : SetPowerPowerParameter) : async Any {
             await* operations__.setPower(config, zone, power)

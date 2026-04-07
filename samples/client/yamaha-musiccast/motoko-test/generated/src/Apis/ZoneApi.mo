@@ -6,7 +6,7 @@ import Blob "mo:core/Blob";
 import Array "mo:core/Array";
 import Error "mo:core/Error";
 import Base64 "mo:core/Base64";
-import { JSON } "mo:serde-core";
+import { JSON } "mo:serde";
 // FIXME: destructuring on `actor` types is not implemented yet for shared functions
 //        type error [M0114], object pattern cannot consume actor type
 import { type http_request_args; type http_request_result; type http_header } "ic:aaaaa-aa";
@@ -33,6 +33,7 @@ module {
 
 
     /// Get sound program list
+    ///
     /// Returns the list of available sound programs for the zone
     public func getSoundProgramList(config : Config, zone : Text) : async* Any {
         let {baseUrl; cycles} = config;
@@ -110,6 +111,7 @@ module {
     };
 
     /// Get zone status
+    ///
     /// Returns the current status of the specified zone
     public func getZoneStatus(config : Config, zone : Text) : async* ZoneStatus {
         let {baseUrl; cycles} = config;
@@ -192,6 +194,7 @@ module {
     };
 
     /// Prepare input change
+    ///
     /// Let a device do necessary process before changing input in a specific zone
     public func prepareInputChange(config : Config, zone : Text, input : Text) : async* Any {
         let {baseUrl; cycles} = config;
@@ -270,6 +273,7 @@ module {
     };
 
     /// Set input source
+    ///
     /// Sets the input source for the zone
     public func setInput(config : Config, zone : Text, input : SetInputInputParameter, mode : SetInputModeParameter) : async* Any {
         let {baseUrl; cycles} = config;
@@ -348,6 +352,7 @@ module {
     };
 
     /// Set mute
+    ///
     /// Enables or disables mute for the zone
     public func setMute(config : Config, zone : Text, enable : Bool) : async* Any {
         let {baseUrl; cycles} = config;
@@ -426,6 +431,7 @@ module {
     };
 
     /// Set sleep timer
+    ///
     /// Sets the sleep timer in minutes (0 to cancel)
     public func setSleep(config : Config, zone : Text, sleep : Nat) : async* Any {
         let {baseUrl; cycles} = config;
@@ -504,6 +510,7 @@ module {
     };
 
     /// Set sound program
+    ///
     /// Sets the sound program (DSP mode) for the zone
     public func setSoundProgram(config : Config, zone : Text, program : Text) : async* Any {
         let {baseUrl; cycles} = config;
@@ -582,6 +589,7 @@ module {
     };
 
     /// Set volume
+    ///
     /// Sets the volume level directly or incrementally
     public func setVolume(config : Config, zone : Text, volume : SetVolumeVolumeParameter, step : Nat) : async* Any {
         let {baseUrl; cycles} = config;
@@ -673,48 +681,56 @@ module {
 
     public module class ZoneApi(config : Config) {
         /// Get sound program list
+        ///
         /// Returns the list of available sound programs for the zone
         public func getSoundProgramList(zone : Text) : async Any {
             await* operations__.getSoundProgramList(config, zone)
         };
 
         /// Get zone status
+        ///
         /// Returns the current status of the specified zone
         public func getZoneStatus(zone : Text) : async ZoneStatus {
             await* operations__.getZoneStatus(config, zone)
         };
 
         /// Prepare input change
+        ///
         /// Let a device do necessary process before changing input in a specific zone
         public func prepareInputChange(zone : Text, input : Text) : async Any {
             await* operations__.prepareInputChange(config, zone, input)
         };
 
         /// Set input source
+        ///
         /// Sets the input source for the zone
         public func setInput(zone : Text, input : SetInputInputParameter, mode : SetInputModeParameter) : async Any {
             await* operations__.setInput(config, zone, input, mode)
         };
 
         /// Set mute
+        ///
         /// Enables or disables mute for the zone
         public func setMute(zone : Text, enable : Bool) : async Any {
             await* operations__.setMute(config, zone, enable)
         };
 
         /// Set sleep timer
+        ///
         /// Sets the sleep timer in minutes (0 to cancel)
         public func setSleep(zone : Text, sleep : Nat) : async Any {
             await* operations__.setSleep(config, zone, sleep)
         };
 
         /// Set sound program
+        ///
         /// Sets the sound program (DSP mode) for the zone
         public func setSoundProgram(zone : Text, program : Text) : async Any {
             await* operations__.setSoundProgram(config, zone, program)
         };
 
         /// Set volume
+        ///
         /// Sets the volume level directly or incrementally
         public func setVolume(zone : Text, volume : SetVolumeVolumeParameter, step : Nat) : async Any {
             await* operations__.setVolume(config, zone, volume, step)

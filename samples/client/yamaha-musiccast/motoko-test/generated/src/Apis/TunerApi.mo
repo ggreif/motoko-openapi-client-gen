@@ -6,7 +6,7 @@ import Blob "mo:core/Blob";
 import Array "mo:core/Array";
 import Error "mo:core/Error";
 import Base64 "mo:core/Base64";
-import { JSON } "mo:serde-core";
+import { JSON } "mo:serde";
 // FIXME: destructuring on `actor` types is not implemented yet for shared functions
 //        type error [M0114], object pattern cannot consume actor type
 import { type http_request_args; type http_request_result; type http_header } "ic:aaaaa-aa";
@@ -32,6 +32,7 @@ module {
 
 
     /// Get tuner playing info
+    ///
     /// Returns information about the currently playing tuner station
     public func getTunerPlayInfo(config : Config) : async* Any {
         let {baseUrl; cycles} = config;
@@ -108,6 +109,7 @@ module {
     };
 
     /// Get tuner preset info
+    ///
     /// Returns information about tuner presets
     public func getTunerPresetInfo(config : Config, band : RecallTunerPresetBandParameter) : async* Any {
         let {baseUrl; cycles} = config;
@@ -185,6 +187,7 @@ module {
     };
 
     /// Recall tuner preset
+    ///
     /// Recalls a saved tuner preset
     public func recallTunerPreset(config : Config, zone : Text, band : RecallTunerPresetBandParameter, num : Nat) : async* Any {
         let {baseUrl; cycles} = config;
@@ -262,6 +265,7 @@ module {
     };
 
     /// Change DAB service
+    ///
     /// Switches to the next or previous DAB service
     public func setDabService(config : Config, dir : SwitchTunerPresetDirParameter) : async* Any {
         let {baseUrl; cycles} = config;
@@ -339,6 +343,7 @@ module {
     };
 
     /// Set tuner frequency
+    ///
     /// Tunes to a specific frequency
     public func setTunerFreq(config : Config, band : RecallTunerPresetBandParameter, tuning : SetTunerFreqTuningParameter, num : Nat) : async* Any {
         let {baseUrl; cycles} = config;
@@ -416,6 +421,7 @@ module {
     };
 
     /// Store tuner preset
+    ///
     /// Stores the current tuner station as a preset
     public func storeTunerPreset(config : Config, num : Nat) : async* Any {
         let {baseUrl; cycles} = config;
@@ -493,6 +499,7 @@ module {
     };
 
     /// Switch tuner preset
+    ///
     /// Switches to the next or previous tuner preset
     public func switchTunerPreset(config : Config, dir : SwitchTunerPresetDirParameter) : async* Any {
         let {baseUrl; cycles} = config;
@@ -582,42 +589,49 @@ module {
 
     public module class TunerApi(config : Config) {
         /// Get tuner playing info
+        ///
         /// Returns information about the currently playing tuner station
         public func getTunerPlayInfo() : async Any {
             await* operations__.getTunerPlayInfo(config)
         };
 
         /// Get tuner preset info
+        ///
         /// Returns information about tuner presets
         public func getTunerPresetInfo(band : RecallTunerPresetBandParameter) : async Any {
             await* operations__.getTunerPresetInfo(config, band)
         };
 
         /// Recall tuner preset
+        ///
         /// Recalls a saved tuner preset
         public func recallTunerPreset(zone : Text, band : RecallTunerPresetBandParameter, num : Nat) : async Any {
             await* operations__.recallTunerPreset(config, zone, band, num)
         };
 
         /// Change DAB service
+        ///
         /// Switches to the next or previous DAB service
         public func setDabService(dir : SwitchTunerPresetDirParameter) : async Any {
             await* operations__.setDabService(config, dir)
         };
 
         /// Set tuner frequency
+        ///
         /// Tunes to a specific frequency
         public func setTunerFreq(band : RecallTunerPresetBandParameter, tuning : SetTunerFreqTuningParameter, num : Nat) : async Any {
             await* operations__.setTunerFreq(config, band, tuning, num)
         };
 
         /// Store tuner preset
+        ///
         /// Stores the current tuner station as a preset
         public func storeTunerPreset(num : Nat) : async Any {
             await* operations__.storeTunerPreset(config, num)
         };
 
         /// Switch tuner preset
+        ///
         /// Switches to the next or previous tuner preset
         public func switchTunerPreset(dir : SwitchTunerPresetDirParameter) : async Any {
             await* operations__.switchTunerPreset(config, dir)
