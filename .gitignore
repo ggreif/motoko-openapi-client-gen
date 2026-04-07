@@ -312,4 +312,8 @@ samples/client/jetbrains/adyen/checkout71/http/client/Apis/http-client.private.e
 
 # Motoko mops cache directories and backup files
 **/.mops/
+**/mops.lock
 *~
+
+# Claude Code settings
+.claude/settings.json
