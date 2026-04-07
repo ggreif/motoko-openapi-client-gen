@@ -84,6 +84,7 @@ module {
     /// {{{summary}}}
     {{/summary}}
     {{#notes}}
+    ///
     /// {{{notes}}}
     {{/notes}}
     public func {{operationId}}(config : Config{{#allParams}}, {{paramName}} : {{#isNullable}}?{{/isNullable}}{{dataType}}{{/allParams}}) : async* {{#returnType}}{{{returnType}}}{{/returnType}}{{^returnType}}(){{/returnType}} {
@@ -282,6 +283,7 @@ module {
         /// {{{summary}}}
         {{/summary}}
         {{#notes}}
+        ///
         /// {{{notes}}}
         {{/notes}}
         public func {{operationId}}({{#allParams}}{{^-first}}, {{/-first}}{{paramName}} : {{#isNullable}}?{{/isNullable}}{{dataType}}{{/allParams}}) : async {{#returnType}}{{{returnType}}}{{/returnType}}{{^returnType}}(){{/returnType}} {
