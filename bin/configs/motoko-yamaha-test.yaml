@@ -6,4 +6,5 @@ artifactId: yamaha-musiccast-client
 artifactVersion: 1.0.0
 additionalProperties:
   hideGenerationTimestamp: "true"
-  useDfx: true
+  useIcp: true
+  projectName: yamaha_test
