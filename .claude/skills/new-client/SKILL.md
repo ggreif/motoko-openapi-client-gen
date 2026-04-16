@@ -268,6 +268,106 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 git push
 ```
 
+## Subset Generation with `focusApis`
+
+Large OpenAPI specs (e.g. OpenAI with 23 APIs and 1,211 models) produce unwieldy
+clients. The `focusApis` feature lets you generate the full client, then
+automatically prune it down to only the APIs you need plus their transitive
+model dependencies.
+
+### Configuration
+
+Add a `focusApis` section to the generator config YAML:
+
+```yaml
+# bin/configs/motoko-<name>.yaml
+generatorName: motoko
+outputDir: samples/client/<name>/motoko/generated
+inputSpec: samples/client/<name>/motoko/specs/<spec-file>
+templateDir: modules/openapi-generator/src/main/resources/motoko
+artifactId: <name>-client
+artifactVersion: 0.1.0
+additionalProperties:
+  hideGenerationTimestamp: "true"
+  useDfx: false
+  artifactRepoUrl: "https://github.com/caffeinelabs/<name>-client"
+
+# Custom: generate.sh prunes to these APIs + their transitive model deps.
+# Remove this section to keep the full API surface.
+focusApis:
+  - Chat
+  - Completions
+  - Models
+```
+
+The generator itself ignores unknown YAML keys, so `focusApis` is invisible to
+`openapi-generator-cli`. It is read exclusively by `generate.sh`.
+
+Tag names match the API file prefix: `Chat` → `ChatApi.mo`, `Models` → `ModelsApi.mo`.
+
+### How `generate.sh` implements pruning
+
+The script runs in three phases:
+
+**Phase 1 — Full generation**: Run the generator normally to produce all APIs,
+Models, Config, and supporting files. This ensures the generator's internal
+cross-references (inline schemas, shared types) are resolved correctly.
+
+**Phase 2 — API pruning**: Delete every `src/Apis/<Tag>Api.mo` file whose tag
+is not listed in `focusApis`. Straightforward filename matching.
+
+**Phase 3 — Model transitive closure**: Keep only the Models that are
+(transitively) imported by the surviving APIs. The algorithm:
+
+1. **Seed**: Scan every kept API file and `Config.mo` for import lines matching
+   `"../Models/<Name>"`. Collect the set of model names.
+
+2. **Expand**: For each model name in the set, open `src/Models/<Name>.mo` and
+   scan for import lines matching `"./<Name>"` (model-to-model imports use
+   relative paths). Add any newly discovered names to the set.
+
+3. **Iterate**: Repeat step 2 until the set stops growing (fixed-point).
+   This is guaranteed to terminate because the set is monotonically growing
+   over a finite universe (the generated model files).
+
+4. **Delete**: Remove every `src/Models/*.mo` file whose name is not in the
+   final set.
+
+```
+Seed:  {kept APIs, Config.mo}
+         │
+         ▼  grep "../Models/<Name>"
+    needed = {M1, M2, M3}
+         │
+         ▼  grep "./<Name>" in M1.mo, M2.mo, M3.mo
+    needed = {M1, M2, M3, M4, M5}
+         │
+         ▼  grep "./<Name>" in M4.mo, M5.mo   (M1–M3 already processed)
+    needed = {M1, M2, M3, M4, M5}  ← fixed point, done
+         │
+         ▼  delete everything in Models/ not in needed
+```
+
+### Additional fixups
+
+`generate.sh` also patches HTML entities (`&lt;` → `<`, `&gt;` → `>`,
+`&amp;` → `&`) that can leak from OpenAPI spec descriptions into generated
+Motoko code. This runs before pruning so the model import scanner sees
+clean source.
+
+### Example: OpenAI
+
+| | Full | Focused (8 APIs) |
+|---|---|---|
+| APIs | 23 | 8 |
+| Models | 1,211 | 211 |
+| Total `.mo` files | 1,235 | 220 |
+
+The 8 focused APIs (Chat, Completions, Models, Embeddings, Images, Audio,
+Moderations, Files) cover the most common OpenAI use cases. The remaining
+15 APIs (Assistants, Realtime, VectorStores, etc.) and their ~1,000
+exclusive models are pruned away.
+
 ## Key Reminders
 
 - **Force push**: If remote already has a README commit, `git push --force` is needed
