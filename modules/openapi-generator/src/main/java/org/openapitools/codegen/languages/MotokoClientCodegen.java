@@ -1169,6 +1169,24 @@ public class MotokoClientCodegen extends DefaultCodegen implements CodegenConfig
                         boolean isPrimitive = isPrimitiveOrMappedType(bodyParam.dataType);
                         bodyParam.vendorExtensions.put("x-body-is-primitive", isPrimitive);
                     }
+
+                    // Collect field names for serde JSON.toText renaming keys.
+                    // Without these, serde outputs Candid field hashes as JSON keys.
+                    if (bodyParam.dataType != null && !isPrimitiveOrMappedType(bodyParam.dataType)
+                            && !bodyParam.isArray && allModels != null) {
+                        for (ModelMap modelMap : allModels) {
+                            CodegenModel model = modelMap.getModel();
+                            if (model != null && model.classname.equals(bodyParam.dataType) && model.vars != null) {
+                                StringBuilder sb = new StringBuilder();
+                                for (int i = 0; i < model.vars.size(); i++) {
+                                    if (i > 0) sb.append(", ");
+                                    sb.append("\"").append(model.vars.get(i).baseName).append("\"");
+                                }
+                                bodyParam.vendorExtensions.put("x-body-field-keys", sb.toString());
+                                break;
+                            }
+                        }
+                    }
                 }
 
                 // Check if any parameters use Map
