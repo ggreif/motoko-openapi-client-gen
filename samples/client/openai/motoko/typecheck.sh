@@ -1,0 +1,101 @@
+#!/bin/bash
+# Typecheck generated code
+
+cd "$(dirname "$0")"
+
+INDIVIDUAL=${INDIVIDUAL:-1}
+
+echo "Installing dependencies..."
+(cd generated && npx ic-mops install)
+
+FAILED=0
+PASSED=0
+
+if [ "$INDIVIDUAL" != "0" ]; then
+  echo ""
+  echo "Type checking generated client code..."
+
+  # Change to generated directory to run moc with correct relative paths
+  cd generated
+
+  for file in src/Config.mo src/Models/*.mo src/Apis/*.mo; do
+    if [ -f "$file" ]; then
+      echo "Checking $file..."
+      PACKAGE_FLAGS=$(npx ic-mops sources)
+      if moc --check $PACKAGE_FLAGS "$file" 2>&1; then
+        echo "✓ OK"
+        ((PASSED++))
+      else
+        echo "✗ FAILED"
+        ((FAILED++))
+      fi
+      echo ""
+    fi
+  done
+
+  cd ..
+fi
+
+echo ""
+echo "Build testing with mops build..."
+TMPBUILD=$(mktemp -d /tmp/openai-build-test-XXXXXX)
+GENERATED_ABS="$(pwd)/generated"
+cat > "$TMPBUILD/mops.toml" << EOF
+[toolchain]
+moc = "1.4.1"
+
+[package]
+name = "openai-build-test"
+version = "0.0.1"
+
+[dependencies]
+openai-client = "$GENERATED_ABS"
+
+[canisters]
+test = "Main.mo"
+EOF
+cat > "$TMPBUILD/Main.mo" << 'EOF'
+import { createChatCompletion } "mo:openai-client/Apis/ChatApi";
+persistent actor {
+    public func test() : async Text { "ok" };
+}
+EOF
+echo "Installing build test dependencies..."
+(cd "$TMPBUILD" && npx ic-mops install) 2>&1
+
+echo ""
+echo "Dependency summary:"
+SOURCES=$(cd "$TMPBUILD" && npx ic-mops sources 2>&1)
+echo "$SOURCES" | awk '
+/^--package / {
+    alias=$2
+    resolved=$3
+    match(resolved, /\/([^\/]+)\/src$/, a)
+    ver = a[1]
+    split(alias, parts, "@"); base=parts[1]
+    aliases[base] = aliases[base] " " alias "=" ver
+    count[base]++
+}
+END {
+    for (b in aliases) {
+        if (count[b] > 1)
+            printf "  %-38s *** MULTI-VERSION:%s\n", b, aliases[b]
+        else {
+            sub(/^ /, "", aliases[b])
+            printf "  %s\n", aliases[b]
+        }
+    }
+}' | sort
+
+echo ""
+echo "Running mops build..."
+if (cd "$TMPBUILD" && npx ic-mops build) 2>&1; then
+    echo "✓ mops build OK"
+else
+    echo "✗ mops build FAILED"
+    ((FAILED++))
+fi
+rm -rf "$TMPBUILD"
+
+echo "Summary: $PASSED passed, $FAILED failed"
+exit $FAILED

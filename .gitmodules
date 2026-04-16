@@ -10,3 +10,6 @@
 [submodule "samples/client/tmdb/motoko/generated"]
 	path = samples/client/tmdb/motoko/generated
 	url = git@github.com:caffeinelabs/tmdb-client.git
+[submodule "samples/client/openai/motoko/generated"]
+	path = samples/client/openai/motoko/generated
+	url = git@github.com:caffeinelabs/openai-client.git

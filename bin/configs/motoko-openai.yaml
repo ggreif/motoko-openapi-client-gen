@@ -1,0 +1,22 @@
+generatorName: motoko
+outputDir: samples/client/openai/motoko/generated
+inputSpec: samples/client/openai/motoko/specs/openai-openapi.yaml
+templateDir: modules/openapi-generator/src/main/resources/motoko
+artifactId: openai-client
+artifactVersion: 0.1.0
+additionalProperties:
+  hideGenerationTimestamp: "true"
+  useDfx: false
+  artifactRepoUrl: "https://github.com/caffeinelabs/openai-client"
+
+# Custom: generate.sh prunes to these APIs + their transitive model deps.
+# Remove this section to keep the full API surface.
+focusApis:
+  - Chat
+  - Completions
+  - Models
+  - Embeddings
+  - Images
+  - Audio
+  - Moderations
+  - Files
