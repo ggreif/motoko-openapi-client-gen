@@ -20,11 +20,13 @@ find "$GENERATED/src" -name '*.mo' -exec \
   sed -i '' -e 's/&lt;/</g' -e 's/&gt;/>/g' -e 's/&amp;/\&/g' {} +
 
 # --- focusApis pruning ---
-# Parse focusApis from the YAML config.  If the section is absent, skip pruning.
+# Parse focusApis from the YAML config.  Accepts either top-level or nested
+# under `additionalProperties:` (where the README template also reads it).
+# If the section is absent, skip pruning.
 FOCUS_APIS=()
 IN_FOCUS=false
 while IFS= read -r line; do
-  if [[ "$line" =~ ^focusApis: ]]; then
+  if [[ "$line" =~ ^[[:space:]]*focusApis: ]]; then
     IN_FOCUS=true
     continue
   fi

@@ -8,18 +8,19 @@ additionalProperties:
   hideGenerationTimestamp: "true"
   useDfx: false
   artifactRepoUrl: "https://github.com/caffeinelabs/openai-client"
-
-# Custom: generate.sh prunes to these APIs + their transitive model deps.
-# Remove this section to keep the full API surface.
-focusApis:
-  - Chat
-  - Completions
-  - Models
-  - Embeddings
-  - Images
-  - Audio
-  - Moderations
-  - Files
+  # Custom: generate.sh prunes to these APIs + their transitive model deps.
+  # Placed under additionalProperties so README.mustache sees it at render
+  # time (then emits the "API Subset" note with this itemised list).
+  # Remove this block to keep the full API surface.
+  focusApis:
+    - Chat
+    - Completions
+    - Models
+    - Embeddings
+    - Images
+    - Audio
+    - Moderations
+    - Files
 
 # Custom: known generator bugs observed in the current output.
 # `mops build` is green (canister entry reaches only Chat-etc.), but per-file
