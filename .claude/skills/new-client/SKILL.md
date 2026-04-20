@@ -241,6 +241,27 @@ sed -i '' "s/Copyright [0-9]\{4\} DFINITY Stiftung/Copyright $(date +%Y) DFINITY
 mkdir -p .github
 printf "%s\n" "* @caffeinelabs/team-languages" > .github/CODEOWNERS
 
+# CHANGELOG.md: seed a Keep-a-Changelog entry for the initial release.
+# Mops uses CHANGELOG.md as the canonical release description; without it
+# `mops publish` falls back to the GitHub release body with a warning.
+cat > CHANGELOG.md <<EOF
+# Changelog
+
+All notable changes to this package are documented in this file.
+The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.1.0] — $(date +%Y-%m-%d)
+
+### Added
+
+- Initial release of the generated Motoko client for the <Name> API.
+- <N> API modules, <M> model modules, 1 \`Config\` module (<total> \`.mo\` files total).
+
+[0.1.0]: https://github.com/caffeinelabs/<name>-client/releases/tag/v0.1.0
+EOF
+# Edit the CHANGELOG to list focusApis / document known caveats if applicable.
+
 git add .
 git status --short | wc -l  # verify .mops/ NOT included
 
@@ -386,5 +407,5 @@ exclusive models are pruned away.
 - **Test import**: Must be a real exported function — check with `grep "^public func"`
 - **Homepage**: Always set `https://mops.one/<name>-client` on the GitHub repo
 - **Spec is in `.gitignore`?** Check — large specs (1MB+) should be committed (they're source)
-- **LICENSE + CODEOWNERS**: Caffeine clients must ship Apache-2.0 `LICENSE` and `.github/CODEOWNERS` (`* @caffeinelabs/team-languages`). Added in Step 9 — easy to miss on fast pushes
+- **LICENSE + CODEOWNERS + CHANGELOG**: Caffeine clients must ship Apache-2.0 `LICENSE`, `.github/CODEOWNERS` (`* @caffeinelabs/team-languages`), and a seeded `CHANGELOG.md`. Added in Step 9 — easy to miss on fast pushes. `mops publish` falls back to the GitHub release body when `CHANGELOG.md` is absent (with a warning)
 - After wiring, update `MEMORY.md` with the new client entry
