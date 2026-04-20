@@ -9,7 +9,7 @@ import Blob "mo:core/Blob";
 import Array "mo:core/Array";
 import Error "mo:core/Error";
 import Base64 "mo:core/Base64";
-import { JSON } "mo:serde";
+import { JSON; Candid } "mo:serde-core";
 {{#useImportedInterface}}
 // FIXME: destructuring on `actor` types is not implemented yet for shared functions
 //        type error [M0114], object pattern cannot consume actor type
@@ -134,7 +134,7 @@ module {
             {{/isDelete}}body = {{#bodyParam}}do ? {
                 let jsonValue = {{#vendorExtensions.x-body-is-array}}{{#vendorExtensions.x-body-array-element-is-primitive}}{{paramName}}{{/vendorExtensions.x-body-array-element-is-primitive}}{{^vendorExtensions.x-body-array-element-is-primitive}}Array.map<{{{vendorExtensions.x-body-base-type}}}, {{{vendorExtensions.x-body-base-type}}}.JSON>({{paramName}}, {{{vendorExtensions.x-body-base-type}}}.toJSON){{/vendorExtensions.x-body-array-element-is-primitive}}{{/vendorExtensions.x-body-is-array}}{{^vendorExtensions.x-body-is-array}}{{#vendorExtensions.x-body-is-primitive}}{{paramName}}{{/vendorExtensions.x-body-is-primitive}}{{^vendorExtensions.x-body-is-primitive}}{{dataType}}.toJSON({{paramName}}){{/vendorExtensions.x-body-is-primitive}}{{/vendorExtensions.x-body-is-array}};
                 let candidBlob = to_candid(jsonValue);
-                let #ok(jsonText) = JSON.toText(candidBlob, [{{#vendorExtensions.x-body-field-keys}}{{{vendorExtensions.x-body-field-keys}}}{{/vendorExtensions.x-body-field-keys}}], null) else throw Error.reject("Failed to serialize to JSON");
+                let #ok(jsonText) = JSON.toText(candidBlob, [{{#vendorExtensions.x-body-field-keys}}{{{vendorExtensions.x-body-field-keys}}}{{/vendorExtensions.x-body-field-keys}}], ?{ Candid.defaultOptions with skip_null_fields = true }) else throw Error.reject("Failed to serialize to JSON");
                 Text.encodeUtf8(jsonText)
             }{{/bodyParam}}{{^bodyParam}}null{{/bodyParam}};
         };

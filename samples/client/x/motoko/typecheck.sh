@@ -42,7 +42,7 @@ TMPBUILD=$(mktemp -d /tmp/x-build-test-XXXXXX)
 GENERATED_ABS="$(pwd)/generated"
 cat > "$TMPBUILD/mops.toml" << EOF
 [toolchain]
-moc = "1.3.0"
+moc = "1.4.1"
 
 [package]
 name = "x-build-test"

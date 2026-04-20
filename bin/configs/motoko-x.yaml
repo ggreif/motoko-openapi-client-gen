@@ -3,7 +3,7 @@ outputDir: samples/client/x/motoko/generated
 inputSpec: samples/client/x/motoko/specs/x-openapi.json
 templateDir: modules/openapi-generator/src/main/resources/motoko
 artifactId: x-client
-artifactVersion: 0.1.0
+artifactVersion: 0.1.2
 additionalProperties:
   hideGenerationTimestamp: "true"
   useDfx: false
