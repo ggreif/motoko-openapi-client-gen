@@ -230,6 +230,14 @@ git checkout -b main
 # Create .gitignore
 echo ".mops/" > .gitignore
 
+# Caffeine conventions: every client repo has Apache-2.0 LICENSE and CODEOWNERS.
+# LICENSE: copy from any existing Caffeine Motoko repo (stock Apache 2.0 boilerplate).
+curl -sSLO https://raw.githubusercontent.com/caffeinelabs/motoko-core/main/LICENSE
+
+# CODEOWNERS: single directive pointing at the languages team.
+mkdir -p .github
+printf "%s\n" "* @caffeinelabs/team-languages" > .github/CODEOWNERS
+
 git add .
 git status --short | wc -l  # verify .mops/ NOT included
 
@@ -375,4 +383,5 @@ exclusive models are pruned away.
 - **Test import**: Must be a real exported function — check with `grep "^public func"`
 - **Homepage**: Always set `https://mops.one/<name>-client` on the GitHub repo
 - **Spec is in `.gitignore`?** Check — large specs (1MB+) should be committed (they're source)
+- **LICENSE + CODEOWNERS**: Caffeine clients must ship Apache-2.0 `LICENSE` and `.github/CODEOWNERS` (`* @caffeinelabs/team-languages`). Added in Step 9 — easy to miss on fast pushes
 - After wiring, update `MEMORY.md` with the new client entry
