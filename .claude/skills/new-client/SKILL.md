@@ -244,6 +244,10 @@ printf "%s\n" "* @caffeinelabs/team-languages" > .github/CODEOWNERS
 # CHANGELOG.md: seed a Keep-a-Changelog entry for the initial release.
 # Mops uses CHANGELOG.md as the canonical release description; without it
 # `mops publish` falls back to the GitHub release body with a warning.
+# Use INLINE links in version headings (not link-reference footers): mops
+# collects a single version's subtree and drops everything past the next
+# same-depth heading, so footer-style `[0.1.0]: url` definitions don't
+# cross section boundaries in multi-version CHANGELOGs.
 cat > CHANGELOG.md <<EOF
 # Changelog
 
@@ -251,14 +255,12 @@ All notable changes to this package are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.0] — $(date +%Y-%m-%d)
+## [0.1.0](https://github.com/caffeinelabs/<name>-client/releases/tag/v0.1.0) — $(date +%Y-%m-%d)
 
 ### Added
 
 - Initial release of the generated Motoko client for the <Name> API.
 - <N> API modules, <M> model modules, 1 \`Config\` module (<total> \`.mo\` files total).
-
-[0.1.0]: https://github.com/caffeinelabs/<name>-client/releases/tag/v0.1.0
 EOF
 # Edit the CHANGELOG to list focusApis / document known caveats if applicable.
 
