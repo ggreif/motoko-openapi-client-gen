@@ -20,3 +20,49 @@ focusApis:
   - Audio
   - Moderations
   - Files
+
+# Custom: known generator bugs observed in the current output.
+# `mops build` is green (canister entry reaches only Chat-etc.), but per-file
+# `moc --check` fails on the models listed here.  All failures are template/
+# sanitiser gaps; none block the Chat surface.  Fix in the Motoko mustache
+# templates / generator Java when these APIs are needed.
+caveats:
+  - id: oneof-inner-array-tag-unsanitised
+    affects:
+      - src/Models/CreateCompletionRequestPrompt.mo
+      - src/Models/CreateEmbeddingRequestInput.mo
+    apis:
+      - Completions
+      - Embeddings
+    symptom: |
+      Generator emits a variant tag `#_[Int] : [[Int]]` for the `oneOf`
+      branch whose inner item is itself a Motoko array type.  `[Int]` is not
+      a valid variant-tag identifier; `moc` reports
+      `syntax error [M0001], unexpected token '_'`.
+    fix-idea: |
+      Sanitise the tag-name derived from an inner array type so it becomes a
+      plain identifier (e.g. `#one_of_3` or `#int_array_array`) before it is
+      written into the `module {}` body.
+
+  - id: record-field-slash-unsanitised
+    affects:
+      - src/Models/CreateModerationResponseResultsInnerCategories.mo
+      - src/Models/CreateModerationResponseResultsInnerCategoryAppliedInputTypes.mo
+      - src/Models/CreateModerationResponseResultsInnerCategoryScores.mo
+    apis:
+      - Moderations
+    symptom: |
+      OpenAI schemas use slash-separated names (`hate/threatening`,
+      `harassment/threatening`, `illicit/violent`, …).  The generator passes
+      the `/` through unescaped into the Motoko record-field position;
+      `moc` reports `syntax error [M0001], unexpected token '/'`.
+    fix-idea: |
+      Replace `/` with `_` (and generally normalise to valid Motoko
+      identifiers) when producing record field names, keeping the original
+      slash-name as the JSON key in the serialiser.
+
+  - id: unit-impact
+    summary: |
+      With the two issues above, 12 of 220 per-file `moc --check` invocations
+      fail.  The Chat-only surface used by the current tutorial is
+      unaffected, and `mops build` is green for the canister entry point.
