@@ -231,8 +231,11 @@ git checkout -b main
 echo ".mops/" > .gitignore
 
 # Caffeine conventions: every client repo has Apache-2.0 LICENSE and CODEOWNERS.
-# LICENSE: copy from any existing Caffeine Motoko repo (stock Apache 2.0 boilerplate).
+# LICENSE: stock Apache 2.0 boilerplate, copyright line set to the current year.
 curl -sSLO https://raw.githubusercontent.com/caffeinelabs/motoko-core/main/LICENSE
+# motoko-core's LICENSE is attributed to "Copyright 2025 DFINITY Stiftung" — patch
+# to the current year so new clients are consistent.
+sed -i '' "s/Copyright [0-9]\{4\} DFINITY Stiftung/Copyright $(date +%Y) DFINITY Stiftung/" LICENSE
 
 # CODEOWNERS: single directive pointing at the languages team.
 mkdir -p .github
