@@ -15,3 +15,24 @@ Action items when ready to generalise:
    has one.
 3. Make sure every future connector package (spotify, twilio, tmdb, openai-client)
    gets a `skills/` entry before production — x-client is the blueprint.
+
+---
+
+TODO: generic connector-skill dispatcher in ai-core-opencode
+
+Long-term vision: a single skill in ai-core-opencode that, on any "integrate
+with <service>" prompt, reads the relevant `<name>-client` mops package,
+inspects its `skills/` dir, and delegates UI / backend / auth decisions to
+those package-embedded skills. Replaces today's one-skill-per-connector
+approach (currently just `posting-to-x`).
+
+When implementing:
+- Discover the mops package name from the user prompt (or let them specify).
+- Fetch the package metadata, locate `skills/` and `skills/README.md`.
+- Load the sub-skills' frontmatter (the skills in x-client are already
+  frontmatter-ready for this) and surface them to the composer.
+- Connector authors are responsible for their skills; Caffeine only maintains
+  a small blueprint set (x-client, plus whichever first-party ones).
+
+Until then: keep adding one-off skills per connector under
+`ai-core-opencode/core/src/assets/opencode/skills/`.
