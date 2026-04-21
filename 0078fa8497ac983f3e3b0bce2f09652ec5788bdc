@@ -52,3 +52,29 @@ The generator's `.openapi-generator-ignore` + the `supportingFiles` list in the
 Motoko codegen should continue to avoid overwriting these. Audit when adding
 new supporting files to the template to make sure nothing with the same path
 collides.
+
+---
+
+TODO (long-term reflection): connector skills will evolve through real-world
+usage — expect many patch releases
+
+Practical reality of maintaining `skills/` inside connector packages:
+
+- Authors discover gotchas only by hitting walls (e.g. the null-JSON fix we
+  just made for x-client took an afternoon and two rejected tweets).
+- Each lesson becomes a sentence, paragraph, or whole document in the
+  package's `skills/`.
+- Every edit needs a patch release on mops so consumers pick it up.
+- Getting a skill from "rough first draft" to "clean run" may take many
+  iterations, possibly aided by a prompt optimiser.
+
+Net effect: expect 0.1.x patch cadence on connector packages to be noisy.
+Several versions per day is plausible during active authoring; stabilisation
+only comes when the skill survives a full integration test unaided.
+
+Open question (no action, parking): could mops deduplicate the static
+`src/` payload and store diffs for patch releases? Right now every 0.1.x
+bump re-uploads the same ~200 `.mo` files. A content-addressed storage
+layer would cut both upload time and mops-backend cost when skills are the
+only thing changing. Worth raising with the mops team if it becomes a
+bottleneck.
