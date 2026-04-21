@@ -1,0 +1,17 @@
+TODO: package-embedded `skills/` convention for mops connectors — establish as a
+repeatable pattern
+
+Currently `samples/client/x/motoko/generated/skills/` carries three hand-
+maintained files:
+  - README.md          (index)
+  - oauth-setup.md     (Developer Portal walkthrough)
+  - tweeting-fine-points.md (minimum version, scopes, replication, nulls, rate limits)
+
+Action items when ready to generalise:
+1. Document the convention in a CONTRIBUTING.md (at the openapi-generator root or
+   alongside the new-client skill) so external connector authors emulate it.
+2. Decide whether the Motoko README template should auto-include a "See skills/"
+   link when a `skills/` directory is present; skip for now since only x-client
+   has one.
+3. Make sure every future connector package (spotify, twilio, tmdb, openai-client)
+   gets a `skills/` entry before production — x-client is the blueprint.
