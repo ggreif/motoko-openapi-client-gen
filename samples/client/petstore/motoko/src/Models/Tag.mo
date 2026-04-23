@@ -1,6 +1,6 @@
+/// A tag for a pet
 
 // Tag.mo
-/// A tag for a pet
 
 module {
     // User-facing type: what application code uses

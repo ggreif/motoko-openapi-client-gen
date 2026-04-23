@@ -1,3 +1,4 @@
+/// A pet for sale in the pet store
 
 import { type Category; JSON = Category } "./Category";
 
@@ -6,7 +7,6 @@ import { type PetStatus; JSON = PetStatus } "./PetStatus";
 import { type Tag; JSON = Tag } "./Tag";
 
 // Pet.mo
-/// A pet for sale in the pet store
 
 module {
     // User-facing type: what application code uses

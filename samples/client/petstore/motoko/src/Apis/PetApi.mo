@@ -6,7 +6,7 @@ import Blob "mo:core/Blob";
 import Array "mo:core/Array";
 import Error "mo:core/Error";
 import Base64 "mo:core/Base64";
-import { JSON } "mo:serde-core";
+import { JSON; Candid } "mo:serde-core";
 // FIXME: destructuring on `actor` types is not implemented yet for shared functions
 //        type error [M0114], object pattern cannot consume actor type
 import { type http_request_args; type http_request_result; type http_header } "ic:aaaaa-aa";
@@ -17,21 +17,11 @@ import { type Pet; JSON = Pet } "../Models/Pet";
 import { type Config } "../Config";
 
 module {
-    type http_method = {
-        #get;
-        #head;
-        #post;
-        // TODO: PUT and DELETE are now supported by the management canister in
-        //   non-replicated mode, but dfx doesn't expose these methods yet.
-        //   Uncomment once dfx support lands:
-        // #put;
-        // #delete;
-    };
-
     let http_request = Mgnt__.http_request;
 
 
     /// Add a new pet to the store
+    ///
     /// 
     public func addPet(config : Config, pet : Pet) : async* Pet {
         let {baseUrl; cycles} = config;
@@ -74,7 +64,7 @@ module {
             body = do ? {
                 let jsonValue = Pet.toJSON(pet);
                 let candidBlob = to_candid(jsonValue);
-                let #ok(jsonText) = JSON.toText(candidBlob, [], null) else throw Error.reject("Failed to serialize to JSON");
+                let #ok(jsonText) = JSON.toText(candidBlob, ["id", "category", "name", "photoUrls", "tags", "status"], ?{ Candid.defaultOptions with skip_null_fields = true }) else throw Error.reject("Failed to serialize to JSON");
                 Text.encodeUtf8(jsonText)
             };
         };
@@ -122,6 +112,7 @@ module {
     };
 
     /// Deletes a pet
+    ///
     /// 
     public func deletePet(config : Config, petId : Int, apiKey : Text) : async* () {
         let {baseUrl; cycles} = config;
@@ -172,6 +163,7 @@ module {
     };
 
     /// Finds Pets by status
+    ///
     /// Multiple status values can be provided with comma separated strings
     public func findPetsByStatus(config : Config, status : [FindPetsByStatusStatusParameterInner]) : async* [Pet] {
         let {baseUrl; cycles} = config;
@@ -259,6 +251,7 @@ module {
     };
 
     /// Finds Pets by tags
+    ///
     /// Multiple tags can be provided with comma separated strings. Use tag1, tag2, tag3 for testing.
     public func findPetsByTags(config : Config, tags : [Text]) : async* [Pet] {
         let {baseUrl; cycles} = config;
@@ -346,6 +339,7 @@ module {
     };
 
     /// Find pet by ID
+    ///
     /// Returns a single pet
     public func getPetById(config : Config, petId : Int) : async* Pet {
         let {baseUrl; cycles} = config;
@@ -436,6 +430,7 @@ module {
     };
 
     /// Update an existing pet
+    ///
     /// 
     public func updatePet(config : Config, pet : Pet) : async* Pet {
         let {baseUrl; cycles} = config;
@@ -478,7 +473,7 @@ module {
             body = do ? {
                 let jsonValue = Pet.toJSON(pet);
                 let candidBlob = to_candid(jsonValue);
-                let #ok(jsonText) = JSON.toText(candidBlob, [], null) else throw Error.reject("Failed to serialize to JSON");
+                let #ok(jsonText) = JSON.toText(candidBlob, ["id", "category", "name", "photoUrls", "tags", "status"], ?{ Candid.defaultOptions with skip_null_fields = true }) else throw Error.reject("Failed to serialize to JSON");
                 Text.encodeUtf8(jsonText)
             };
         };
@@ -534,6 +529,7 @@ module {
     };
 
     /// Updates a pet in the store with form data
+    ///
     /// 
     public func updatePetWithForm(config : Config, petId : Int, name : Text, status : Text) : async* () {
         let {baseUrl; cycles} = config;
@@ -583,6 +579,7 @@ module {
     };
 
     /// uploads an image
+    ///
     /// 
     public func uploadFile(config : Config, petId : Int, additionalMetadata : Text, file : Blob) : async* ApiResponse {
         let {baseUrl; cycles} = config;
@@ -678,48 +675,56 @@ module {
 
     public module class PetApi(config : Config) {
         /// Add a new pet to the store
+        ///
         /// 
         public func addPet(pet : Pet) : async Pet {
             await* operations__.addPet(config, pet)
         };
 
         /// Deletes a pet
+        ///
         /// 
         public func deletePet(petId : Int, apiKey : Text) : async () {
             await* operations__.deletePet(config, petId, apiKey)
         };
 
         /// Finds Pets by status
+        ///
         /// Multiple status values can be provided with comma separated strings
         public func findPetsByStatus(status : [FindPetsByStatusStatusParameterInner]) : async [Pet] {
             await* operations__.findPetsByStatus(config, status)
         };
 
         /// Finds Pets by tags
+        ///
         /// Multiple tags can be provided with comma separated strings. Use tag1, tag2, tag3 for testing.
         public func findPetsByTags(tags : [Text]) : async [Pet] {
             await* operations__.findPetsByTags(config, tags)
         };
 
         /// Find pet by ID
+        ///
         /// Returns a single pet
         public func getPetById(petId : Int) : async Pet {
             await* operations__.getPetById(config, petId)
         };
 
         /// Update an existing pet
+        ///
         /// 
         public func updatePet(pet : Pet) : async Pet {
             await* operations__.updatePet(config, pet)
         };
 
         /// Updates a pet in the store with form data
+        ///
         /// 
         public func updatePetWithForm(petId : Int, name : Text, status : Text) : async () {
             await* operations__.updatePetWithForm(config, petId, name, status)
         };
 
         /// uploads an image
+        ///
         /// 
         public func uploadFile(petId : Int, additionalMetadata : Text, file : Blob) : async ApiResponse {
             await* operations__.uploadFile(config, petId, additionalMetadata, file)

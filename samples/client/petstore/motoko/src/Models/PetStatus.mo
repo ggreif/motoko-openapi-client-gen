@@ -1,6 +1,6 @@
+/// pet status in the store
 
 // PetStatus.mo
-/// pet status in the store
 /// Enum values: #available, #pending, #sold
 
 module {

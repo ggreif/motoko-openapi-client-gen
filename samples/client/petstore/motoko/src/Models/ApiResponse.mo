@@ -1,6 +1,6 @@
+/// Describes the result of uploading an image resource
 
 // ApiResponse.mo
-/// Describes the result of uploading an image resource
 
 module {
     // User-facing type: what application code uses

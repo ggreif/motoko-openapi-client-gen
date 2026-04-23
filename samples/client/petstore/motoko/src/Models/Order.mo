@@ -1,8 +1,8 @@
+/// An order for a pets from the pet store
 
 import { type OrderStatus; JSON = OrderStatus } "./OrderStatus";
 
 // Order.mo
-/// An order for a pets from the pet store
 
 module {
     // User-facing type: what application code uses

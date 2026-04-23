@@ -6,7 +6,7 @@ import Blob "mo:core/Blob";
 import Array "mo:core/Array";
 import Error "mo:core/Error";
 import Base64 "mo:core/Base64";
-import { JSON } "mo:serde-core";
+import { JSON; Candid } "mo:serde-core";
 // FIXME: destructuring on `actor` types is not implemented yet for shared functions
 //        type error [M0114], object pattern cannot consume actor type
 import { type http_request_args; type http_request_result; type http_header } "ic:aaaaa-aa";
@@ -16,21 +16,11 @@ import { type Map; fromIter } "mo:core/pure/Map";
 import { type Config } "../Config";
 
 module {
-    type http_method = {
-        #get;
-        #head;
-        #post;
-        // TODO: PUT and DELETE are now supported by the management canister in
-        //   non-replicated mode, but dfx doesn't expose these methods yet.
-        //   Uncomment once dfx support lands:
-        // #put;
-        // #delete;
-    };
-
     let http_request = Mgnt__.http_request;
 
 
     /// Delete purchase order by ID
+    ///
     /// For valid response try integer IDs with value < 1000. Anything above 1000 or nonintegers will generate API errors
     public func deleteOrder(config : Config, orderId : Text) : async* () {
         let {baseUrl; cycles} = config;
@@ -80,6 +70,7 @@ module {
     };
 
     /// Returns pet inventories by status
+    ///
     /// Returns a map of status codes to quantities
     public func getInventory(config : Config) : async* Map<Text, Int> {
         let {baseUrl; cycles} = config;
@@ -156,6 +147,7 @@ module {
     };
 
     /// Find purchase order by ID
+    ///
     /// For valid response try integer IDs with value <= 5 or > 10. Other values will generate exceptions
     public func getOrderById(config : Config, orderId : Nat) : async* Order {
         let {baseUrl; cycles} = config;
@@ -246,6 +238,7 @@ module {
     };
 
     /// Place an order for a pet
+    ///
     /// 
     public func placeOrder(config : Config, order : Order) : async* Order {
         let {baseUrl; cycles} = config;
@@ -288,7 +281,7 @@ module {
             body = do ? {
                 let jsonValue = Order.toJSON(order);
                 let candidBlob = to_candid(jsonValue);
-                let #ok(jsonText) = JSON.toText(candidBlob, [], null) else throw Error.reject("Failed to serialize to JSON");
+                let #ok(jsonText) = JSON.toText(candidBlob, ["id", "petId", "quantity", "shipDate", "status", "complete"], ?{ Candid.defaultOptions with skip_null_fields = true }) else throw Error.reject("Failed to serialize to JSON");
                 Text.encodeUtf8(jsonText)
             };
         };
@@ -345,24 +338,28 @@ module {
 
     public module class StoreApi(config : Config) {
         /// Delete purchase order by ID
+        ///
         /// For valid response try integer IDs with value < 1000. Anything above 1000 or nonintegers will generate API errors
         public func deleteOrder(orderId : Text) : async () {
             await* operations__.deleteOrder(config, orderId)
         };
 
         /// Returns pet inventories by status
+        ///
         /// Returns a map of status codes to quantities
         public func getInventory() : async Map<Text, Int> {
             await* operations__.getInventory(config)
         };
 
         /// Find purchase order by ID
+        ///
         /// For valid response try integer IDs with value <= 5 or > 10. Other values will generate exceptions
         public func getOrderById(orderId : Nat) : async Order {
             await* operations__.getOrderById(config, orderId)
         };
 
         /// Place an order for a pet
+        ///
         /// 
         public func placeOrder(order : Order) : async Order {
             await* operations__.placeOrder(config, order)

@@ -6,7 +6,7 @@ import Blob "mo:core/Blob";
 import Array "mo:core/Array";
 import Error "mo:core/Error";
 import Base64 "mo:core/Base64";
-import { JSON } "mo:serde";
+import { JSON; Candid } "mo:serde-core";
 // FIXME: destructuring on `actor` types is not implemented yet for shared functions
 //        type error [M0114], object pattern cannot consume actor type
 import { type http_request_args; type http_request_result; type http_header } "ic:aaaaa-aa";
@@ -18,17 +18,6 @@ import { type ZoneStatus; JSON = ZoneStatus } "../Models/ZoneStatus";
 import { type Config } "../Config";
 
 module {
-    type http_method = {
-        #get;
-        #head;
-        #post;
-        // TODO: PUT and DELETE are now supported by the management canister in
-        //   non-replicated mode, but dfx doesn't expose these methods yet.
-        //   Uncomment once dfx support lands:
-        // #put;
-        // #delete;
-    };
-
     let http_request = Mgnt__.http_request;
 
 

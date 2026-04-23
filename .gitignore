@@ -20,8 +20,6 @@ build/*
 generated-files/*
 generated-sources/*
 generated-code/*
-samples/client/*/motoko-test/.dfx/
-samples/client/*/motoko-test/.mops/
 samples/client/*/motoko-test/generated/
 !samples/client/yamaha-musiccast/motoko-test/generated/
 *.swp
@@ -303,6 +301,13 @@ samples/client/petstore/crystal/lib
 # Go
 samples/openapi3/client/petstore/go/privatekey.pem
 
+# Motoko mops cache directories and backup files
+**/.mops/
+**/.icp/
+**/.dfx/
+**/mops.lock
+*~
+
 ## OCaml
 samples/client/petstore/ocaml/_build/
 samples/client/petstore/ocaml-fake-petstore/_build/
@@ -313,11 +318,6 @@ samples/client/petstore/ocaml-recursion-test/_build/
 
 # jetbrain http client
 samples/client/jetbrains/adyen/checkout71/http/client/Apis/http-client.private.env.json
-
-# Motoko mops cache directories and backup files
-**/.mops/
-**/mops.lock
-*~
 
 # Claude Code settings
 .claude/settings.json

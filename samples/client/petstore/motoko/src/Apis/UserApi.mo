@@ -6,7 +6,7 @@ import Blob "mo:core/Blob";
 import Array "mo:core/Array";
 import Error "mo:core/Error";
 import Base64 "mo:core/Base64";
-import { JSON } "mo:serde-core";
+import { JSON; Candid } "mo:serde-core";
 // FIXME: destructuring on `actor` types is not implemented yet for shared functions
 //        type error [M0114], object pattern cannot consume actor type
 import { type http_request_args; type http_request_result; type http_header } "ic:aaaaa-aa";
@@ -15,21 +15,11 @@ import { type User; JSON = User } "../Models/User";
 import { type Config } "../Config";
 
 module {
-    type http_method = {
-        #get;
-        #head;
-        #post;
-        // TODO: PUT and DELETE are now supported by the management canister in
-        //   non-replicated mode, but dfx doesn't expose these methods yet.
-        //   Uncomment once dfx support lands:
-        // #put;
-        // #delete;
-    };
-
     let http_request = Mgnt__.http_request;
 
 
     /// Create user
+    ///
     /// This can only be done by the logged in user.
     public func createUser(config : Config, user : User) : async* () {
         let {baseUrl; cycles} = config;
@@ -72,7 +62,7 @@ module {
             body = do ? {
                 let jsonValue = User.toJSON(user);
                 let candidBlob = to_candid(jsonValue);
-                let #ok(jsonText) = JSON.toText(candidBlob, [], null) else throw Error.reject("Failed to serialize to JSON");
+                let #ok(jsonText) = JSON.toText(candidBlob, ["id", "username", "firstName", "lastName", "email", "password", "phone", "userStatus"], ?{ Candid.defaultOptions with skip_null_fields = true }) else throw Error.reject("Failed to serialize to JSON");
                 Text.encodeUtf8(jsonText)
             };
         };
@@ -83,6 +73,7 @@ module {
     };
 
     /// Creates list of users with given input array
+    ///
     /// 
     public func createUsersWithArrayInput(config : Config, user : [User]) : async* () {
         let {baseUrl; cycles} = config;
@@ -125,7 +116,7 @@ module {
             body = do ? {
                 let jsonValue = Array.map<User, User.JSON>(user, User.toJSON);
                 let candidBlob = to_candid(jsonValue);
-                let #ok(jsonText) = JSON.toText(candidBlob, [], null) else throw Error.reject("Failed to serialize to JSON");
+                let #ok(jsonText) = JSON.toText(candidBlob, [], ?{ Candid.defaultOptions with skip_null_fields = true }) else throw Error.reject("Failed to serialize to JSON");
                 Text.encodeUtf8(jsonText)
             };
         };
@@ -136,6 +127,7 @@ module {
     };
 
     /// Creates list of users with given input array
+    ///
     /// 
     public func createUsersWithListInput(config : Config, user : [User]) : async* () {
         let {baseUrl; cycles} = config;
@@ -178,7 +170,7 @@ module {
             body = do ? {
                 let jsonValue = Array.map<User, User.JSON>(user, User.toJSON);
                 let candidBlob = to_candid(jsonValue);
-                let #ok(jsonText) = JSON.toText(candidBlob, [], null) else throw Error.reject("Failed to serialize to JSON");
+                let #ok(jsonText) = JSON.toText(candidBlob, [], ?{ Candid.defaultOptions with skip_null_fields = true }) else throw Error.reject("Failed to serialize to JSON");
                 Text.encodeUtf8(jsonText)
             };
         };
@@ -189,6 +181,7 @@ module {
     };
 
     /// Delete user
+    ///
     /// This can only be done by the logged in user.
     public func deleteUser(config : Config, username : Text) : async* () {
         let {baseUrl; cycles} = config;
@@ -238,6 +231,7 @@ module {
     };
 
     /// Get user by user name
+    ///
     /// 
     public func getUserByName(config : Config, username : Text) : async* User {
         let {baseUrl; cycles} = config;
@@ -328,6 +322,7 @@ module {
     };
 
     /// Logs user into the system
+    ///
     /// 
     public func loginUser(config : Config, username : Text, password : Text) : async* Text {
         let {baseUrl; cycles} = config;
@@ -409,6 +404,7 @@ module {
     };
 
     /// Logs out current logged in user session
+    ///
     /// 
     public func logoutUser(config : Config) : async* () {
         let {baseUrl; cycles} = config;
@@ -457,6 +453,7 @@ module {
     };
 
     /// Updated user
+    ///
     /// This can only be done by the logged in user.
     public func updateUser(config : Config, username : Text, user : User) : async* () {
         let {baseUrl; cycles} = config;
@@ -500,7 +497,7 @@ module {
             body = do ? {
                 let jsonValue = User.toJSON(user);
                 let candidBlob = to_candid(jsonValue);
-                let #ok(jsonText) = JSON.toText(candidBlob, [], null) else throw Error.reject("Failed to serialize to JSON");
+                let #ok(jsonText) = JSON.toText(candidBlob, ["id", "username", "firstName", "lastName", "email", "password", "phone", "userStatus"], ?{ Candid.defaultOptions with skip_null_fields = true }) else throw Error.reject("Failed to serialize to JSON");
                 Text.encodeUtf8(jsonText)
             };
         };
@@ -524,48 +521,56 @@ module {
 
     public module class UserApi(config : Config) {
         /// Create user
+        ///
         /// This can only be done by the logged in user.
         public func createUser(user : User) : async () {
             await* operations__.createUser(config, user)
         };
 
         /// Creates list of users with given input array
+        ///
         /// 
         public func createUsersWithArrayInput(user : [User]) : async () {
             await* operations__.createUsersWithArrayInput(config, user)
         };
 
         /// Creates list of users with given input array
+        ///
         /// 
         public func createUsersWithListInput(user : [User]) : async () {
             await* operations__.createUsersWithListInput(config, user)
         };
 
         /// Delete user
+        ///
         /// This can only be done by the logged in user.
         public func deleteUser(username : Text) : async () {
             await* operations__.deleteUser(config, username)
         };
 
         /// Get user by user name
+        ///
         /// 
         public func getUserByName(username : Text) : async User {
             await* operations__.getUserByName(config, username)
         };
 
         /// Logs user into the system
+        ///
         /// 
         public func loginUser(username : Text, password : Text) : async Text {
             await* operations__.loginUser(config, username, password)
         };
 
         /// Logs out current logged in user session
+        ///
         /// 
         public func logoutUser() : async () {
             await* operations__.logoutUser(config)
         };
 
         /// Updated user
+        ///
         /// This can only be done by the logged in user.
         public func updateUser(username : Text, user : User) : async () {
             await* operations__.updateUser(config, username, user)

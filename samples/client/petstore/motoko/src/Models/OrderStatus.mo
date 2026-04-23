@@ -1,6 +1,6 @@
+/// Order Status
 
 // OrderStatus.mo
-/// Order Status
 /// Enum values: #placed, #approved, #delivered
 
 module {

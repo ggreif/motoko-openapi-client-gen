@@ -1,6 +1,6 @@
+/// A User who is purchasing from the pet store
 
 // User.mo
-/// A User who is purchasing from the pet store
 
 module {
     // User-facing type: what application code uses

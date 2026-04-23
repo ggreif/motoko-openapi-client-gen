@@ -1,4 +1,5 @@
 README.md
+icp.yaml
 mops.toml
 src/Apis/NetusbApi.mo
 src/Apis/PowerApi.mo
