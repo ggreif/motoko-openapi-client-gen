@@ -7,7 +7,7 @@ import Text "mo:core/Text";
 import Int "mo:core/Int";
 import Blob "mo:core/Blob";
 import Array "mo:core/Array";
-import Buffer "mo:core/Buffer";
+import List "mo:core/List";
 import Error "mo:core/Error";
 import Base64 "mo:core/Base64";
 import { JSON; Candid } "mo:serde-core";
@@ -164,13 +164,13 @@ module {
             {{#vendorExtensions.x-return-is-array}}
             (switch (_) {
                 case (#Array(xs__)) {
-                    let buf__ = Buffer.Buffer<{{{vendorExtensions.x-return-base-type}}}>(xs__.size());
+                    let buf__ = List.empty<{{{vendorExtensions.x-return-base-type}}}>();
                     for (c__ in xs__.values()) {
                         {{#vendorExtensions.x-return-array-element-is-primitive}}let #Text(s__) = c__ else throw Error.reject("HTTP " # Int.toText(response.status) # ": Expected array of strings");
-                        buf__.add(s__);{{/vendorExtensions.x-return-array-element-is-primitive}}{{^vendorExtensions.x-return-array-element-is-primitive}}let ?v__ = {{{vendorExtensions.x-return-base-type}}}.fromCandidValue(c__) else throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to convert array element to {{{vendorExtensions.x-return-base-type}}}");
-                        buf__.add(v__);{{/vendorExtensions.x-return-array-element-is-primitive}}
+                        List.add(buf__, s__);{{/vendorExtensions.x-return-array-element-is-primitive}}{{^vendorExtensions.x-return-array-element-is-primitive}}let ?v__ = {{{vendorExtensions.x-return-base-type}}}.fromCandidValue(c__) else throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to convert array element to {{{vendorExtensions.x-return-base-type}}}");
+                        List.add(buf__, v__);{{/vendorExtensions.x-return-array-element-is-primitive}}
                     };
-                    Buffer.toArray(buf__);
+                    List.toArray(buf__);
                 };
                 case _ throw Error.reject("HTTP " # Int.toText(response.status) # ": Expected JSON array"{{#diagnostics}} # " — server returned: " # (switch (Text.decodeUtf8(response.body)) { case (?t) t; case null "(undecodable bytes)" }){{/diagnostics}});
             })
@@ -186,12 +186,12 @@ module {
             {{#vendorExtensions.x-return-is-map}}
             (switch (_) {
                 case (#Record(pairs__)) {
-                    let buf__ = Buffer.Buffer<(Text, {{{vendorExtensions.x-return-map-value-type}}})>(pairs__.size());
+                    let buf__ = List.empty<(Text, {{{vendorExtensions.x-return-map-value-type}}})>();
                     for ((k__, c__) in pairs__.values()) {
                         let ?v__ = (switch (c__) { case (#Text(s)) ?s; case _ null }) else throw Error.reject("HTTP " # Int.toText(response.status) # ": map value not Text");
-                        buf__.add((k__, v__));
+                        List.add(buf__, (k__, v__));
                     };
-                    fromIter<Text, {{{vendorExtensions.x-return-map-value-type}}}>(Buffer.toArray(buf__).values(), Text.compare)
+                    fromIter<Text, {{{vendorExtensions.x-return-map-value-type}}}>(List.toArray(buf__).values(), Text.compare)
                 };
                 case _ throw Error.reject("HTTP " # Int.toText(response.status) # ": Expected JSON object for Map");
             })

@@ -1,4 +1,1 @@
-{{!
-  Build a Candid.Candid expression for a Map value `v`. Inherits the field's
-  CodegenProperty context; here `items` is the *value type* of the Map.
-}}{{#items}}{{#isString}}#Text(v){{/isString}}{{^isString}}{{#isBoolean}}#Bool(v){{/isBoolean}}{{^isBoolean}}{{#isFloat}}#Float(v){{/isFloat}}{{^isFloat}}{{#isDouble}}#Float(v){{/isDouble}}{{^isDouble}}{{#isInteger}}#Int(v){{/isInteger}}{{^isInteger}}{{#isLong}}#Int(v){{/isLong}}{{^isLong}}{{#isEnumRef}}{{{datatypeWithEnum}}}.toCandidValue(v){{/isEnumRef}}{{^isEnumRef}}{{{dataType}}}.toCandidValue(v){{/isEnumRef}}{{/isLong}}{{/isInteger}}{{/isDouble}}{{/isFloat}}{{/isBoolean}}{{/isString}}{{/items}}
+{{#items}}{{#isString}}#Text(v){{/isString}}{{^isString}}{{#isBoolean}}#Bool(v){{/isBoolean}}{{^isBoolean}}{{#isFloat}}#Float(v){{/isFloat}}{{^isFloat}}{{#isDouble}}#Float(v){{/isDouble}}{{^isDouble}}{{#isInteger}}#Int(v){{/isInteger}}{{^isInteger}}{{#isLong}}#Int(v){{/isLong}}{{^isLong}}{{#isEnumRef}}{{{datatypeWithEnum}}}.toCandidValue(v){{/isEnumRef}}{{^isEnumRef}}{{{dataType}}}.toCandidValue(v){{/isEnumRef}}{{/isLong}}{{/isInteger}}{{/isDouble}}{{/isFloat}}{{/isBoolean}}{{/isString}}{{/items}}

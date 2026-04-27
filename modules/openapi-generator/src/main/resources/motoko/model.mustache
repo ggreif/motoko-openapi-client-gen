@@ -13,7 +13,7 @@ import { type {{import}}; JSON = {{import}} } "./{{import}}";
 {{#model}}
 import { Candid } "mo:serde-core";
 import Array "mo:core/Array";
-import Buffer "mo:core/Buffer";
+import List "mo:core/List";
 {{#vendorExtensions.x-has-unsigned-fields}}
 import Int "mo:core/Int";
 {{/vendorExtensions.x-has-unsigned-fields}}
@@ -100,12 +100,12 @@ module {
             switch (candid) {
                 case (#Text(s)) ?#string(s);
                 case (#Array(xs)) {
-                    let buf = Buffer.Buffer<{{vendorExtensions.x-string-or-array-element-type}}>(xs.size());
+                    let buf = List.empty<{{vendorExtensions.x-string-or-array-element-type}}>();
                     for (c in xs.values()) {
                         let ?p = {{#vendorExtensions.x-string-or-array-element-is-model}}{{vendorExtensions.x-string-or-array-element-type}}.fromCandidValue(c){{/vendorExtensions.x-string-or-array-element-is-model}}{{^vendorExtensions.x-string-or-array-element-is-model}}(switch c { case (#Text(s)) ?s; case _ null }){{/vendorExtensions.x-string-or-array-element-is-model}} else return null;
-                        buf.add(p);
+                        List.add(buf, p);
                     };
-                    ?#array(Buffer.toArray(buf));
+                    ?#array(List.toArray(buf));
                 };
                 case _ null;
             };
@@ -225,19 +225,19 @@ module {
 
     public module JSON {
         public func toCandidValue(value : {{classname}}) : Candid.Candid {
-            let buf = Buffer.Buffer<(Text, Candid.Candid)>({{vars.size}});
+            let buf = List.empty<(Text, Candid.Candid)>();
 {{#vars}}
 {{#required}}
-            buf.add(("{{baseName}}", {{>candid_field_to_required}}));
+            List.add(buf, ("{{baseName}}", {{>candid_field_to_required}}));
 {{/required}}
 {{^required}}
             switch (value.{{name}}) {
-                case (?v__) buf.add(("{{baseName}}", {{>candid_field_to_optional_unwrapped}}));
+                case (?v__) List.add(buf, ("{{baseName}}", {{>candid_field_to_optional_unwrapped}}));
                 case null ();
             };
 {{/required}}
 {{/vars}}
-            #Record(Buffer.toArray(buf));
+            #Record(List.toArray(buf));
         };
 
         public func fromCandidValue(candid : Candid.Candid) : ?{{classname}} =

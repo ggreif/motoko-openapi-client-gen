@@ -1,15 +1,11 @@
-{{!
-  Decode `{{name}}_field.1` (a Candid value expected to be `#Record(_)`)
-  into `?Map<Text, V>`. We currently emit `Map<Text, V>` from request side
-  and parse the same shape back. Caller imports `fromIter` and `Text.compare`.
-}}switch ({{name}}_field.1) {
+switch ({{name}}_field.1) {
                         case (#Record(pairs__)) {
-                            let buf__ = Buffer.Buffer<(Text, {{items.dataType}})>(pairs__.size());
+                            let buf__ = List.empty<(Text, {{items.dataType}})>();
                             for ((k__, c__) in pairs__.values()) {
                                 {{#items}}{{#isString}}let #Text(v__) = c__ else return null;{{/isString}}{{^isString}}{{#isBoolean}}let #Bool(v__) = c__ else return null;{{/isBoolean}}{{^isBoolean}}{{#isFloat}}let #Float(v__) = c__ else return null;{{/isFloat}}{{^isFloat}}{{#isDouble}}let #Float(v__) = c__ else return null;{{/isDouble}}{{^isDouble}}{{#isInteger}}let #Int(v__) = c__ else return null;{{/isInteger}}{{^isInteger}}{{#isLong}}let #Int(v__) = c__ else return null;{{/isLong}}{{^isLong}}let ?v__ = {{{dataType}}}.fromCandidValue(c__) else return null;{{/isLong}}{{/isInteger}}{{/isDouble}}{{/isFloat}}{{/isBoolean}}{{/isString}}{{/items}}
-                                buf__.add((k__, v__));
+                                List.add(buf__, (k__, v__));
                             };
-                            ?fromIter<Text, {{items.dataType}}>(Buffer.toArray(buf__).values(), Text.compare);
+                            ?fromIter<Text, {{items.dataType}}>(List.toArray(buf__).values(), Text.compare);
                         };
                         case _ null;
                     }

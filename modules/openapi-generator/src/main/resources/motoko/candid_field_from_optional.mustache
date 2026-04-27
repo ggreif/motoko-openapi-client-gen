@@ -1,6 +1,1 @@
-{{!
-  Decode an optional field — the field-presence has already been checked
-  by the caller (so `{{name}}_field` is the (k, v) pair, present), but we
-  must wrap the inner-decode result back in `?T`. Same dispatch as
-  candid_field_from_required, just lifted (`(decode) :> ?T` directly).
-}}{{>candid_field_from_required}}
+{{>candid_field_from_required}}

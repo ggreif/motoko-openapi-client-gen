@@ -1033,6 +1033,129 @@ public class MotokoClientCodegen extends DefaultCodegen implements CodegenConfig
             }
         }
 
+        // INFERRED-DISCRIMINATOR PASS: when a oneOf has no explicit `discriminator` keyword
+        // (OpenAI's `ChatCompletionRequestMessage` is the canonical example) but every branch
+        // is a record with a single-valued enum property by the same name (`role`), the wire
+        // form is a flat object with that property as discriminator. Cross-reference branches
+        // here (postProcessAllModels has the global view) and retrofit `x-is-discriminator-oneof`
+        // + per-variant `discriminatorValue` + variant rename to the discriminator value.
+        Map<String, CodegenModel> byClassname = new HashMap<>();
+        for (CodegenModel m : allModels) byClassname.put(m.classname, m);
+        for (CodegenModel m : allModels) {
+            if (!Boolean.TRUE.equals(m.vendorExtensions.get("x-is-oneof"))) continue;
+            if (Boolean.TRUE.equals(m.vendorExtensions.get("x-is-discriminator-oneof"))) continue;
+            if (Boolean.TRUE.equals(m.vendorExtensions.get("x-is-string-flatten"))) continue;
+            if (Boolean.TRUE.equals(m.vendorExtensions.get("x-is-string-or-array-flatten"))) continue;
+            if (m.getComposedSchemas() == null || m.getComposedSchemas().getOneOf() == null) continue;
+
+            List<CodegenProperty> oneOfList = m.getComposedSchemas().getOneOf();
+            if (oneOfList.isEmpty()) continue;
+
+            // For each branch, resolve it to a CodegenModel (records only) and find every
+            // single-valued enum property. Intersect across branches by property name.
+            // Each value across branches must also be unique (else it's not a discriminator).
+            Map<String, Map<String, String>> propertyToBranchValue = null;  // propName -> (branchClassname -> enumValue)
+            boolean inferable = true;
+            for (CodegenProperty branch : oneOfList) {
+                if (branch.complexType == null) { inferable = false; break; }
+                CodegenModel branchModel = byClassname.get(branch.complexType);
+                if (branchModel == null || branchModel.vars == null || branchModel.vars.isEmpty()) {
+                    inferable = false; break;
+                }
+                Map<String, String> singleEnumProps = new HashMap<>();
+                for (CodegenProperty p : branchModel.vars) {
+                    Map<String, Object> source = null;
+                    if (Boolean.TRUE.equals(p.isEnum) && p.allowableValues != null) {
+                        source = p.allowableValues;
+                    } else if (p.isEnumRef && p.complexType != null) {
+                        // Inline enum was promoted to its own model — fetch the values from
+                        // the referenced enum model.
+                        CodegenModel enumModel = byClassname.get(p.complexType);
+                        if (enumModel != null && Boolean.TRUE.equals(enumModel.isEnum)
+                                && enumModel.allowableValues != null) {
+                            source = enumModel.allowableValues;
+                        }
+                    }
+                    if (source != null) {
+                        @SuppressWarnings("unchecked")
+                        List<Object> values = (List<Object>) source.get("values");
+                        if (values != null && values.size() == 1 && values.get(0) instanceof String) {
+                            singleEnumProps.put(p.baseName, (String) values.get(0));
+                        }
+                    }
+                }
+                if (singleEnumProps.isEmpty()) { inferable = false; break; }
+                if (propertyToBranchValue == null) {
+                    propertyToBranchValue = new HashMap<>();
+                    for (Map.Entry<String, String> e : singleEnumProps.entrySet()) {
+                        Map<String, String> sub = new HashMap<>();
+                        sub.put(branch.complexType, e.getValue());
+                        propertyToBranchValue.put(e.getKey(), sub);
+                    }
+                } else {
+                    // Intersect: drop property names not in this branch
+                    Iterator<Map.Entry<String, Map<String, String>>> it = propertyToBranchValue.entrySet().iterator();
+                    while (it.hasNext()) {
+                        Map.Entry<String, Map<String, String>> e = it.next();
+                        if (!singleEnumProps.containsKey(e.getKey())) {
+                            it.remove();
+                        } else {
+                            e.getValue().put(branch.complexType, singleEnumProps.get(e.getKey()));
+                        }
+                    }
+                    if (propertyToBranchValue.isEmpty()) { inferable = false; break; }
+                }
+            }
+            if (!inferable || propertyToBranchValue == null || propertyToBranchValue.isEmpty()) continue;
+
+            // Pick a discriminator property: prefer "role" / "type" / "kind" by convention; else
+            // any with all-distinct values. If multiple candidates exist with all-distinct values,
+            // prefer "role" → "type" → "kind" → (any other in alphabetical order) to be deterministic.
+            String pickedProp = null;
+            String[] preferredOrder = { "role", "type", "kind" };
+            for (String pref : preferredOrder) {
+                if (propertyToBranchValue.containsKey(pref)) {
+                    Map<String, String> vals = propertyToBranchValue.get(pref);
+                    if (new HashSet<>(vals.values()).size() == vals.size()) {
+                        pickedProp = pref; break;
+                    }
+                }
+            }
+            if (pickedProp == null) {
+                List<String> sorted = new ArrayList<>(propertyToBranchValue.keySet());
+                Collections.sort(sorted);
+                for (String cand : sorted) {
+                    Map<String, String> vals = propertyToBranchValue.get(cand);
+                    if (new HashSet<>(vals.values()).size() == vals.size()) {
+                        pickedProp = cand; break;
+                    }
+                }
+            }
+            if (pickedProp == null) continue;
+
+            Map<String, String> refToDiscriminatorKey = propertyToBranchValue.get(pickedProp);
+            m.vendorExtensions.put("x-is-discriminator-oneof", true);
+            m.vendorExtensions.put("x-discriminator-property", pickedProp);
+
+            // Retrofit oneOfVariants: rename each variant tag to the discriminator value, and
+            // attach the discriminatorValue for the Mustache.
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> existingVariants =
+                    (List<Map<String, Object>>) m.vendorExtensions.get("oneOfVariants");
+            if (existingVariants != null) {
+                for (Map<String, Object> variant : existingVariants) {
+                    Object dataTypeObj = variant.get("dataType");
+                    if (dataTypeObj instanceof String) {
+                        String discriminatorValue = refToDiscriminatorKey.get((String) dataTypeObj);
+                        if (discriminatorValue != null) {
+                            variant.put("name", toVarName(discriminatorValue));
+                            variant.put("discriminatorValue", discriminatorValue);
+                        }
+                    }
+                }
+            }
+        }
+
         // THIRD PASS: Detect transitive enum references (models containing fields that reference models with enums)
         // Iterate until we reach a fixed point (no new models marked as having enum fields)
         boolean changed = true;
