@@ -5,7 +5,8 @@
 {{/description}}
 {{/model}}
 {{#imports}}
-{{#isMap}}import { type Map; entries } "mo:core/pure/Map";
+{{#isMap}}import { type Map; entries; fromIter } "mo:core/pure/Map";
+import Text "mo:core/Text";
 {{/isMap}}{{^isMappedType}}
 import { type {{import}}; JSON = {{import}} } "./{{import}}";
 {{/isMappedType}}

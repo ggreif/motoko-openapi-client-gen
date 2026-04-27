@@ -6,11 +6,12 @@ switch ({{name}}_field.1) {
                                 List.add(buf__, s__);{{/isString}}{{^isString}}{{#isBoolean}}let #Bool(b__) = c__ else return null;
                                 List.add(buf__, b__);{{/isBoolean}}{{^isBoolean}}{{#isFloat}}let #Float(f__) = c__ else return null;
                                 List.add(buf__, f__);{{/isFloat}}{{^isFloat}}{{#isDouble}}let #Float(f__) = c__ else return null;
-                                List.add(buf__, f__);{{/isDouble}}{{^isDouble}}{{#isInteger}}let #Int(i__) = c__ else return null;
+                                List.add(buf__, f__);{{/isDouble}}{{^isDouble}}{{#isNumber}}let #Float(f__) = c__ else return null;
+                                List.add(buf__, f__);{{/isNumber}}{{^isNumber}}{{#isInteger}}let #Int(i__) = c__ else return null;
                                 List.add(buf__, i__);{{/isInteger}}{{^isInteger}}{{#isLong}}let #Int(i__) = c__ else return null;
                                 List.add(buf__, i__);{{/isLong}}{{^isLong}}{{#isEnumRef}}let ?e__ = {{{datatypeWithEnum}}}.fromCandidValue(c__) else return null;
                                 List.add(buf__, e__);{{/isEnumRef}}{{^isEnumRef}}let ?m__ = {{{dataType}}}.fromCandidValue(c__) else return null;
-                                List.add(buf__, m__);{{/isEnumRef}}{{/isLong}}{{/isInteger}}{{/isDouble}}{{/isFloat}}{{/isBoolean}}{{/isString}}{{/items}}
+                                List.add(buf__, m__);{{/isEnumRef}}{{/isLong}}{{/isInteger}}{{/isNumber}}{{/isDouble}}{{/isFloat}}{{/isBoolean}}{{/isString}}{{/items}}
                             };
                             ?List.toArray(buf__);
                         };

@@ -666,6 +666,34 @@ public class MotokoClientCodegen extends DefaultCodegen implements CodegenConfig
     }
 
     /**
+     * Backfill primitive type flags (isString / isInteger / etc.) on a CodegenProperty
+     * when openapi-generator left them unset. Triggered for Map / Array `items` when
+     * the value type is a Motoko primitive (Text, Int, Nat, Float, Bool) — in those
+     * cases the Mustache partials default to a non-existent `Text.toCandidValue(...)`
+     * call. Inspect `dataType` and set the flags directly.
+     */
+    private void backfillPrimitiveFlags(CodegenProperty p) {
+        if (p == null || p.dataType == null) return;
+        if (p.complexType != null) return;  // model / enum reference — leave alone
+        switch (p.dataType) {
+            case "Text":
+                p.isString = true; break;
+            case "Int": case "Int32": case "Int64":
+                p.isInteger = true; break;
+            case "Nat": case "Nat32": case "Nat64":
+                p.isInteger = true;
+                p.vendorExtensions.put("x-is-unsigned", true);
+                break;
+            case "Float":
+                p.isFloat = true; break;
+            case "Bool":
+                p.isBoolean = true; break;
+        }
+        // Recurse into nested items (arrays of arrays, etc.)
+        if (p.items != null) backfillPrimitiveFlags(p.items);
+    }
+
+    /**
      * Pick a Motoko variant tag for one branch of a oneOf.
      *
      * When the parent oneOf carries an OpenAPI {@code discriminator.mapping}, prefer the
@@ -1153,6 +1181,18 @@ public class MotokoClientCodegen extends DefaultCodegen implements CodegenConfig
                         }
                     }
                 }
+            }
+        }
+
+        // PRIMITIVE-FLAGS-ON-ITEMS PASS: openapi-generator sometimes leaves the `isString` /
+        // `isInteger` / etc. flags unset on the `items` of a Map (or Array) when the value
+        // type is a Motoko primitive (`Text`, `Int`, …). Without these flags the Mustache
+        // partials default to the model-call branch (`Text.toCandidValue(v)` — which
+        // doesn't exist for Motoko primitives). Backfill the flags by inspecting `dataType`.
+        for (CodegenModel m : allModels) {
+            if (m.vars == null) continue;
+            for (CodegenProperty p : m.vars) {
+                if (p.items != null) backfillPrimitiveFlags(p.items);
             }
         }
 
