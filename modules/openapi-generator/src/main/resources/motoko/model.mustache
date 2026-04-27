@@ -66,6 +66,27 @@ module {
 }
 {{/isEnum}}
 {{^isEnum}}
+{{#vendorExtensions.x-is-string-flatten}}
+// {{classname}}.mo
+// anyOf / oneOf where every branch produces a JSON string on the wire — flattened
+// to `Text` directly so `to_candid` doesn't wrap the value as `{"<tag>": …}`.
+
+module {
+    public type {{classname}} = Text;
+
+    public module JSON {
+        public type JSON = Text;
+
+        public func toJSON(value : {{classname}}) : JSON = value;
+        public func fromJSON(json : JSON) : ?{{classname}} = ?json;
+{{#diagnostics}}
+
+        public func validate(_value : {{classname}}) : ?Text = null;
+{{/diagnostics}}
+    }
+}
+{{/vendorExtensions.x-is-string-flatten}}
+{{^vendorExtensions.x-is-string-flatten}}
 {{#vendorExtensions.x-is-oneof}}
 // {{classname}}.mo
 import Runtime "mo:core/Runtime";
@@ -254,6 +275,7 @@ module {
     }
 }
 {{/vendorExtensions.x-is-oneof}}
+{{/vendorExtensions.x-is-string-flatten}}
 {{/isEnum}}
 {{/model}}
 {{/models}}

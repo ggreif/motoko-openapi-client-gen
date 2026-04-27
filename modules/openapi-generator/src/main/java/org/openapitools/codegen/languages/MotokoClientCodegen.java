@@ -916,6 +916,41 @@ public class MotokoClientCodegen extends DefaultCodegen implements CodegenConfig
             }
         }
 
+        // STRING-FLATTEN PASS: when an anyOf / oneOf has only string-producing branches
+        // (a primitive `type: string` arm and / or a $ref to a string-valued enum), the
+        // wire JSON is just a plain string. Emit `type X = Text` directly (with identity
+        // toJSON / fromJSON) instead of a tagged variant, otherwise `to_candid` would
+        // wrap it as `{"<tag>": "<value>"}` and the upstream API would reject. Catches
+        // the OpenAI ModelIdsShared (`anyOf<string, ModelIdsSharedAnyOf>`) bug.
+        Set<String> stringEnumClasses = new HashSet<>();
+        for (CodegenModel m : allModels) {
+            if (Boolean.TRUE.equals(m.isEnum) && "Text".equals(m.dataType)) {
+                stringEnumClasses.add(m.classname);
+            }
+        }
+        for (CodegenModel m : allModels) {
+            if (m.getComposedSchemas() == null) continue;
+            List<CodegenProperty> composedList = null;
+            if (m.getComposedSchemas().getOneOf() != null && !m.getComposedSchemas().getOneOf().isEmpty()) {
+                composedList = m.getComposedSchemas().getOneOf();
+            } else if (m.getComposedSchemas().getAnyOf() != null && !m.getComposedSchemas().getAnyOf().isEmpty()) {
+                composedList = m.getComposedSchemas().getAnyOf();
+            }
+            if (composedList == null) continue;
+            boolean allStringLike = true;
+            for (CodegenProperty p : composedList) {
+                if ("Text".equals(p.dataType)) continue;                              // primitive string
+                if (p.complexType != null && stringEnumClasses.contains(p.complexType)) continue;  // $ref to string enum
+                allStringLike = false;
+                break;
+            }
+            if (allStringLike) {
+                m.vendorExtensions.put("x-is-string-flatten", true);
+                // Suppress the empty-fallback diagnostic — we have a real type now.
+                m.vendorExtensions.remove("x-is-empty-fallback");
+            }
+        }
+
         // EMPTY-FALLBACK PASS: collect classnames of empty-fallback models, then mark
         // every field whose `dataType` references one. Used by model.mustache (when
         // `diagnostics` is on) to emit a `validate` function that recurses into those
