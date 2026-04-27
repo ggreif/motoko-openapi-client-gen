@@ -33,10 +33,12 @@ public class MotokoClientCodegen extends DefaultCodegen implements CodegenConfig
     public static final String PROJECT_NAME = "projectName";
     public static final String USE_DFX = "useDfx";
     public static final String USE_ICP = "useIcp";
+    public static final String DIAGNOSTICS = "diagnostics";
 
     protected String projectName = "OpenAPI";
     protected boolean useDfx = false;
     protected boolean useIcp = false;
+    protected boolean diagnostics = false;
 
     @Override
     public CodegenType getTag() {
@@ -149,6 +151,7 @@ public class MotokoClientCodegen extends DefaultCodegen implements CodegenConfig
         cliOptions.add(CliOption.newString(PROJECT_NAME, "Project name for generated code"));
         cliOptions.add(CliOption.newBoolean(USE_DFX, "Use ic:aaaaa-aa imports (dfx toolchain). Mutually exclusive with useIcp.", useDfx));
         cliOptions.add(CliOption.newBoolean(USE_ICP, "Use ic:aaaaa-aa imports and generate icp.yaml (icp-cli toolchain; replaces dfx). Mutually exclusive with useDfx.", useIcp));
+        cliOptions.add(CliOption.newBoolean(DIAGNOSTICS, "Emit `Runtime.trap` with diagnostic messages at code paths the generator detected as likely-incorrect (e.g. oneOf collapsed to empty record). Use during development to surface generator gaps clearly instead of producing silently-bad JSON.", diagnostics));
 
         // Enable inline enum resolution to create model files for inline enum parameters
         // This ensures type-safe enum variants instead of raw Text types
@@ -180,6 +183,11 @@ public class MotokoClientCodegen extends DefaultCodegen implements CodegenConfig
         }
         // useImportedInterface: true when either useDfx or useIcp — both use moc with ic:aaaaa-aa imports
         additionalProperties.put("useImportedInterface", useDfx || useIcp);
+
+        if (additionalProperties.containsKey(DIAGNOSTICS)) {
+            setDiagnostics(convertPropertyToBooleanAndWriteBack(DIAGNOSTICS));
+        }
+        additionalProperties.put(DIAGNOSTICS, diagnostics);
     }
 
     @Override
@@ -242,6 +250,14 @@ public class MotokoClientCodegen extends DefaultCodegen implements CodegenConfig
 
     public boolean getUseDfx() {
         return useDfx;
+    }
+
+    public void setDiagnostics(boolean diagnostics) {
+        this.diagnostics = diagnostics;
+    }
+
+    public boolean getDiagnostics() {
+        return diagnostics;
     }
 
     public void setUseIcp(boolean useIcp) {
@@ -795,6 +811,18 @@ public class MotokoClientCodegen extends DefaultCodegen implements CodegenConfig
                     if (hasUnsignedFields) {
                         model.vendorExtensions.put("x-has-unsigned-fields", true);
                     }
+
+                    // Detect "empty fallback" models — no vars, not enum, not oneOf-tagged.
+                    // These are typically `oneOf<string, …>` schemas that the generator could not
+                    // synthesise into a tagged union, so the resulting type is `{}` and JSON
+                    // serialisation produces `{}`, which downstream APIs reject. Mark them so
+                    // model.mustache can emit a `validate` function (when `diagnostics` is on)
+                    // and so postProcessAllModels can mark their use sites in other models.
+                    if ((model.vars == null || model.vars.isEmpty())
+                            && !Boolean.TRUE.equals(model.isEnum)
+                            && !Boolean.TRUE.equals(model.vendorExtensions.get("x-is-oneof"))) {
+                        model.vendorExtensions.put("x-is-empty-fallback", true);
+                    }
                 }
             }
         }
@@ -884,6 +912,33 @@ public class MotokoClientCodegen extends DefaultCodegen implements CodegenConfig
                     if (model != null) {
                         allModels.add(model);
                     }
+                }
+            }
+        }
+
+        // EMPTY-FALLBACK PASS: collect classnames of empty-fallback models, then mark
+        // every field whose `dataType` references one. Used by model.mustache (when
+        // `diagnostics` is on) to emit a `validate` function that recurses into those
+        // fields and bubbles up a `?Text` diagnostic; api.mustache then translates a
+        // non-null result into a `throw Error.reject(msg)` at the call site.
+        Set<String> emptyFallbackNames = new HashSet<>();
+        for (CodegenModel model : allModels) {
+            if (Boolean.TRUE.equals(model.vendorExtensions.get("x-is-empty-fallback"))) {
+                emptyFallbackNames.add(model.classname);
+            }
+        }
+        if (!emptyFallbackNames.isEmpty()) {
+            for (CodegenModel model : allModels) {
+                if (model.vars == null || model.vars.isEmpty()) continue;
+                boolean any = false;
+                for (CodegenProperty prop : model.vars) {
+                    if (prop.dataType != null && emptyFallbackNames.contains(prop.dataType)) {
+                        prop.vendorExtensions.put("x-needs-fallback-validation", true);
+                        any = true;
+                    }
+                }
+                if (any) {
+                    model.vendorExtensions.put("x-has-fallback-validation", true);
                 }
             }
         }

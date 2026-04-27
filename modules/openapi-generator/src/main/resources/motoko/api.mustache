@@ -132,6 +132,16 @@ module {
             {{#isPut}}is_replicated = ?false; // PUT requires non-replicated mode on IC
             {{/isPut}}{{#isDelete}}is_replicated = ?false; // DELETE requires non-replicated mode on IC
             {{/isDelete}}body = {{#bodyParam}}do ? {
+{{#diagnostics}}{{^vendorExtensions.x-body-is-primitive}}{{^vendorExtensions.x-body-is-array}}
+                // Pre-flight validation (`diagnostics=true`): if the request body's type
+                // (or any nested empty-fallback field) carries a generator diagnostic,
+                // throw it now so the consumer's `catch (e) { e.message() }` sees the
+                // explanation directly instead of a downstream HTTP 4xx.
+                switch ({{dataType}}.validate({{paramName}})) {
+                    case (?msg) throw Error.reject(msg);
+                    case null ();
+                };
+{{/vendorExtensions.x-body-is-array}}{{/vendorExtensions.x-body-is-primitive}}{{/diagnostics}}
                 let jsonValue = {{#vendorExtensions.x-body-is-array}}{{#vendorExtensions.x-body-array-element-is-primitive}}{{paramName}}{{/vendorExtensions.x-body-array-element-is-primitive}}{{^vendorExtensions.x-body-array-element-is-primitive}}Array.map<{{{vendorExtensions.x-body-base-type}}}, {{{vendorExtensions.x-body-base-type}}}.JSON>({{paramName}}, {{{vendorExtensions.x-body-base-type}}}.toJSON){{/vendorExtensions.x-body-array-element-is-primitive}}{{/vendorExtensions.x-body-is-array}}{{^vendorExtensions.x-body-is-array}}{{#vendorExtensions.x-body-is-primitive}}{{paramName}}{{/vendorExtensions.x-body-is-primitive}}{{^vendorExtensions.x-body-is-primitive}}{{dataType}}.toJSON({{paramName}}){{/vendorExtensions.x-body-is-primitive}}{{/vendorExtensions.x-body-is-array}};
                 let candidBlob = to_candid(jsonValue);
                 let #ok(jsonText) = JSON.toText(candidBlob, [{{#vendorExtensions.x-body-field-keys}}{{{vendorExtensions.x-body-field-keys}}}{{/vendorExtensions.x-body-field-keys}}], ?{ Candid.defaultOptions with skip_null_fields = true }) else throw Error.reject("Failed to serialize to JSON");
@@ -148,18 +158,18 @@ module {
             // Success response (2xx): parse as expected return type
             (switch (Text.decodeUtf8(response.body)) {
                 case (?text) text;
-                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to decode response body as UTF-8");
+                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to decode response body as UTF-8"{{#diagnostics}} # " (" # Int.toText(response.body.size()) # " bytes of non-UTF-8 data — server may have returned binary, gzipped, or non-UTF-8-charset content)"{{/diagnostics}});
             }) |>
             (switch (JSON.fromText(_, null)) {
                 case (#ok(blob)) blob;
-                case (#err(msg)) throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to parse JSON: " # msg);
+                case (#err(msg)) throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to parse JSON: " # msg{{#diagnostics}} # " — server returned: " # (switch (Text.decodeUtf8(response.body)) { case (?t) t; case null "(undecodable bytes)" }){{/diagnostics}});
             }) |>
             {{#vendorExtensions.x-return-is-array}}
             {{#vendorExtensions.x-return-array-element-is-primitive}}
             from_candid(_) : ?[{{{vendorExtensions.x-return-base-type}}}] |>
             (switch (_) {
                 case (?result) result;
-                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response");
+                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response"{{#diagnostics}} # " — server returned: " # (switch (Text.decodeUtf8(response.body)) { case (?t) t; case null "(undecodable bytes)" }){{/diagnostics}});
             })
             {{/vendorExtensions.x-return-array-element-is-primitive}}
             {{^vendorExtensions.x-return-array-element-is-primitive}}
@@ -172,7 +182,7 @@ module {
                     };
                     converted
                 };
-                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response");
+                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response"{{#diagnostics}} # " — server returned: " # (switch (Text.decodeUtf8(response.body)) { case (?t) t; case null "(undecodable bytes)" }){{/diagnostics}});
             })
             {{/vendorExtensions.x-return-array-element-is-primitive}}
             {{/vendorExtensions.x-return-is-array}}
@@ -181,7 +191,7 @@ module {
             from_candid(_) : ?{{{returnType}}} |>
             (switch (_) {
                 case (?result) result;
-                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response");
+                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response"{{#diagnostics}} # " — server returned: " # (switch (Text.decodeUtf8(response.body)) { case (?t) t; case null "(undecodable bytes)" }){{/diagnostics}});
             })
             {{/vendorExtensions.x-return-is-primitive}}
             {{^vendorExtensions.x-return-is-primitive}}
@@ -189,7 +199,7 @@ module {
             from_candid(_) : ?[(Text, {{{vendorExtensions.x-return-map-value-type}}})] |>
             (switch (_) {
                 case (?pairs) fromIter<Text, {{{vendorExtensions.x-return-map-value-type}}}>(pairs.values(), Text.compare);
-                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response");
+                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response"{{#diagnostics}} # " — server returned: " # (switch (Text.decodeUtf8(response.body)) { case (?t) t; case null "(undecodable bytes)" }){{/diagnostics}});
             })
             {{/vendorExtensions.x-return-is-map}}
             {{^vendorExtensions.x-return-is-map}}
@@ -201,7 +211,7 @@ module {
                         case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to convert response to {{{returnType}}}");
                     }
                 };
-                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response");
+                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response"{{#diagnostics}} # " — server returned: " # (switch (Text.decodeUtf8(response.body)) { case (?t) t; case null "(undecodable bytes)" }){{/diagnostics}});
             })
             {{/vendorExtensions.x-return-is-map}}
             {{/vendorExtensions.x-return-is-primitive}}
@@ -241,7 +251,7 @@ module {
             {{^dataType}}
             // {{code}}: {{message}} (no response body model defined)
             if (response.status == {{code}}) {
-                throw Error.reject("HTTP {{code}}: {{message}}");
+                throw Error.reject("HTTP {{code}}: {{message}}"{{#diagnostics}} # " — server returned: " # (switch (Text.decodeUtf8(response.body)) { case (?t) t; case null "(" # Int.toText(response.body.size()) # " undecodable bytes)" }){{/diagnostics}});
             };
             {{/dataType}}
             {{/is2xx}}

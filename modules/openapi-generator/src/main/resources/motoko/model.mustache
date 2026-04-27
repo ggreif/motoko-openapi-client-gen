@@ -57,6 +57,11 @@ module {
 {{/allowableValues}}
                 case _ null;
             };
+{{#diagnostics}}
+
+        // Pre-flight validation (`diagnostics=true`): enums are always valid.
+        public func validate(_value : {{classname}}) : ?Text = null;
+{{/diagnostics}}
     }
 }
 {{/isEnum}}
@@ -106,6 +111,12 @@ module {
                 case ({{#hasType}}#{{name}}(v){{/hasType}}{{^hasType}}#{{name}}{{/hasType}}) {{#hasType}}{{#isUnsigned}}if (v < 0) null else ?#{{name}}(Int.abs(v)){{/isUnsigned}}{{^isUnsigned}}?#{{name}}(v){{/isUnsigned}}{{/hasType}}{{^hasType}}?#{{name}}{{/hasType}};
 {{/vendorExtensions.oneOfVariants}}
             };
+{{#diagnostics}}
+
+        // Pre-flight validation (`diagnostics=true`): oneOf variants currently
+        // pass through (recursive variant inspection is a v2 follow-up).
+        public func validate(_value : {{classname}}) : ?Text = null;
+{{/diagnostics}}
     }
 }
 {{/vendorExtensions.x-is-oneof}}
@@ -201,6 +212,45 @@ module {
 {{/vars}}
             }
         }{{/vendorExtensions.xHasPartialTransform}}{{/vendorExtensions.xNoEnumFields}};
+{{#diagnostics}}
+
+        // Pre-flight validation (`diagnostics=true`): surface generator-known wire-format
+        // gaps as `?Text`, so api.mustache can `throw Error.reject(msg)` instead of letting
+        // bad JSON reach the upstream API and come back as an opaque 4xx.
+{{#vendorExtensions.x-is-empty-fallback}}
+        public func validate(_value : {{classname}}) : ?Text =
+            ?"openapi-generator(motoko): {{classname}} has no synthesisable JSON form (likely a oneOf<string, …> the codegen could not tag). Override the type or `{{classname}}.JSON.toJSON` in your client to fix the wire format.";
+{{/vendorExtensions.x-is-empty-fallback}}
+{{^vendorExtensions.x-is-empty-fallback}}
+{{#vendorExtensions.x-has-fallback-validation}}
+        public func validate(value : {{classname}}) : ?Text {
+{{#vars}}
+{{#vendorExtensions.x-needs-fallback-validation}}
+{{#required}}
+            switch ({{{dataType}}}.validate(value.{{name}})) {
+                case (?msg) return ?msg;
+                case null ();
+            };
+{{/required}}
+{{^required}}
+            switch (value.{{name}}) {
+                case (?inner) switch ({{{dataType}}}.validate(inner)) {
+                    case (?msg) return ?msg;
+                    case null ();
+                };
+                case null ();
+            };
+{{/required}}
+{{/vendorExtensions.x-needs-fallback-validation}}
+{{/vars}}
+            null
+        };
+{{/vendorExtensions.x-has-fallback-validation}}
+{{^vendorExtensions.x-has-fallback-validation}}
+        public func validate(_value : {{classname}}) : ?Text = null;
+{{/vendorExtensions.x-has-fallback-validation}}
+{{/vendorExtensions.x-is-empty-fallback}}
+{{/diagnostics}}
     }
 }
 {{/vendorExtensions.x-is-oneof}}
