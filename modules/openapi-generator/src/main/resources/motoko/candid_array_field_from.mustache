@@ -1,0 +1,21 @@
+{{!
+  Decode `{{name}}_field.1` (a Candid value expected to be `#Array(_)`)
+  into `?[Element]`. Element decoding inherits from `{{#items}}`.
+}}switch ({{name}}_field.1) {
+                        case (#Array(xs__)) {
+                            let buf__ = Buffer.Buffer<{{items.dataType}}>(xs__.size());
+                            label arr for (c__ in xs__.values()) {
+                                {{#items}}{{#isString}}let #Text(s__) = c__ else return null;
+                                buf__.add(s__);{{/isString}}{{^isString}}{{#isBoolean}}let #Bool(b__) = c__ else return null;
+                                buf__.add(b__);{{/isBoolean}}{{^isBoolean}}{{#isFloat}}let #Float(f__) = c__ else return null;
+                                buf__.add(f__);{{/isFloat}}{{^isFloat}}{{#isDouble}}let #Float(f__) = c__ else return null;
+                                buf__.add(f__);{{/isDouble}}{{^isDouble}}{{#isInteger}}let #Int(i__) = c__ else return null;
+                                buf__.add(i__);{{/isInteger}}{{^isInteger}}{{#isLong}}let #Int(i__) = c__ else return null;
+                                buf__.add(i__);{{/isLong}}{{^isLong}}{{#isEnumRef}}let ?e__ = {{{datatypeWithEnum}}}.fromCandidValue(c__) else return null;
+                                buf__.add(e__);{{/isEnumRef}}{{^isEnumRef}}let ?m__ = {{{dataType}}}.fromCandidValue(c__) else return null;
+                                buf__.add(m__);{{/isEnumRef}}{{/isLong}}{{/isInteger}}{{/isDouble}}{{/isFloat}}{{/isBoolean}}{{/isString}}{{/items}}
+                            };
+                            ?Buffer.toArray(buf__);
+                        };
+                        case _ null;
+                    }

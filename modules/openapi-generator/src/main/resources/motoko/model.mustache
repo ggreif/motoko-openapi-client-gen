@@ -5,12 +5,16 @@
 {{/description}}
 {{/model}}
 {{#imports}}
-{{#isMap}}import { type Map } "mo:core/pure/Map";
+{{#isMap}}import { type Map; entries } "mo:core/pure/Map";
 {{/isMap}}{{^isMappedType}}
 import { type {{import}}; JSON = {{import}} } "./{{import}}";
 {{/isMappedType}}
 {{/imports}}
-{{#model}}{{#vendorExtensions.x-has-unsigned-fields}}
+{{#model}}
+import { Candid } "mo:serde-core";
+import Array "mo:core/Array";
+import Buffer "mo:core/Buffer";
+{{#vendorExtensions.x-has-unsigned-fields}}
 import Int "mo:core/Int";
 {{/vendorExtensions.x-has-unsigned-fields}}
 
@@ -19,7 +23,6 @@ import Int "mo:core/Int";
 /// Enum values: {{#allowableValues}}{{#enumVars}}#{{name}}{{^-last}}, {{/-last}}{{/enumVars}}{{/allowableValues}}
 
 module {
-    // User-facing type: type-safe variants for application code
     public type {{classname}} = {
 {{#allowableValues}}
 {{#enumVars}}
@@ -31,121 +34,186 @@ module {
 {{/allowableValues}}
     };
 
-    // JSON sub-module: everything needed for JSON serialization
     public module JSON {
-        // JSON-facing Motoko type: mirrors JSON structure
-        // Named "JSON" to avoid shadowing the outer {{classname}} type
-        public type JSON = {{dataType}};
-
-        // Convert User-facing type to JSON-facing Motoko type
-        public func toJSON(value : {{classname}}) : JSON =
+        public func toCandidValue(value : {{classname}}) : Candid.Candid =
             switch (value) {
 {{#allowableValues}}
 {{#enumVars}}
-                case (#{{name}}) {{#isString}}"{{value}}"{{/isString}}{{^isString}}{{value}}{{/isString}};
+                case (#{{name}}) {{#isString}}#Text("{{value}}"){{/isString}}{{^isString}}#Int({{value}}){{/isString}};
 {{/enumVars}}
 {{/allowableValues}}
             };
 
-        // Convert JSON-facing Motoko type to User-facing type
-        public func fromJSON(json : JSON) : ?{{classname}} =
-            switch (json) {
+        public func fromCandidValue(candid : Candid.Candid) : ?{{classname}} =
+            switch (candid) {
 {{#allowableValues}}
 {{#enumVars}}
-                case {{#isString}}"{{value}}"{{/isString}}{{^isString}}({{value}}){{/isString}} ?#{{name}};
+                case ({{#isString}}#Text("{{value}}"){{/isString}}{{^isString}}#Int({{value}}){{/isString}}) ?#{{name}};
 {{/enumVars}}
 {{/allowableValues}}
                 case _ null;
             };
-{{#diagnostics}}
-
-        // Pre-flight validation (`diagnostics=true`): enums are always valid.
-        public func validate(_value : {{classname}}) : ?Text = null;
-{{/diagnostics}}
-    }
-}
+    };
+};
 {{/isEnum}}
 {{^isEnum}}
 {{#vendorExtensions.x-is-string-flatten}}
 // {{classname}}.mo
-// anyOf / oneOf where every branch produces a JSON string on the wire — flattened
-// to `Text` directly so `to_candid` doesn't wrap the value as `{"<tag>": …}`.
+// anyOf / oneOf where every branch produces a JSON string on the wire — flattened to `Text`.
 
 module {
     public type {{classname}} = Text;
 
     public module JSON {
-        public type JSON = Text;
-
-        public func toJSON(value : {{classname}}) : JSON = value;
-        public func fromJSON(json : JSON) : ?{{classname}} = ?json;
-{{#diagnostics}}
-
-        public func validate(_value : {{classname}}) : ?Text = null;
-{{/diagnostics}}
-    }
-}
+        public func toCandidValue(value : {{classname}}) : Candid.Candid = #Text(value);
+        public func fromCandidValue(candid : Candid.Candid) : ?{{classname}} =
+            switch (candid) {
+                case (#Text(s)) ?s;
+                case _ null;
+            };
+    };
+};
 {{/vendorExtensions.x-is-string-flatten}}
 {{^vendorExtensions.x-is-string-flatten}}
-{{#vendorExtensions.x-is-oneof}}
+{{#vendorExtensions.x-is-string-or-array-flatten}}
 // {{classname}}.mo
-import Runtime "mo:core/Runtime";
+// oneOf<Text, [{{vendorExtensions.x-string-or-array-element-type}}]> on the wire — emit as
+// `#string : Text` or `#array : [...]` user-side, projected to JSON string-or-array directly.
 
 module {
-    // User-facing type: discriminated union (oneOf)
+    public type {{classname}} = {
+        #string : Text;
+        #array : [{{vendorExtensions.x-string-or-array-element-type}}];
+    };
+
+    public module JSON {
+        public func toCandidValue(value : {{classname}}) : Candid.Candid =
+            switch (value) {
+                case (#string(s)) #Text(s);
+                case (#array(xs)) #Array(Array.map<{{vendorExtensions.x-string-or-array-element-type}}, Candid.Candid>(
+                    xs,
+                    {{#vendorExtensions.x-string-or-array-element-is-model}}{{vendorExtensions.x-string-or-array-element-type}}.toCandidValue{{/vendorExtensions.x-string-or-array-element-is-model}}{{^vendorExtensions.x-string-or-array-element-is-model}}func(s : {{vendorExtensions.x-string-or-array-element-type}}) : Candid.Candid = #Text(s){{/vendorExtensions.x-string-or-array-element-is-model}}
+                ));
+            };
+
+        public func fromCandidValue(candid : Candid.Candid) : ?{{classname}} =
+            switch (candid) {
+                case (#Text(s)) ?#string(s);
+                case (#Array(xs)) {
+                    let buf = Buffer.Buffer<{{vendorExtensions.x-string-or-array-element-type}}>(xs.size());
+                    for (c in xs.values()) {
+                        let ?p = {{#vendorExtensions.x-string-or-array-element-is-model}}{{vendorExtensions.x-string-or-array-element-type}}.fromCandidValue(c){{/vendorExtensions.x-string-or-array-element-is-model}}{{^vendorExtensions.x-string-or-array-element-is-model}}(switch c { case (#Text(s)) ?s; case _ null }){{/vendorExtensions.x-string-or-array-element-is-model}} else return null;
+                        buf.add(p);
+                    };
+                    ?#array(Buffer.toArray(buf));
+                };
+                case _ null;
+            };
+    };
+};
+{{/vendorExtensions.x-is-string-or-array-flatten}}
+{{^vendorExtensions.x-is-string-or-array-flatten}}
+{{#vendorExtensions.x-is-discriminator-oneof}}
+// {{classname}}.mo
+// Discriminator-oneOf — wire is a flat object whose `{{vendorExtensions.x-discriminator-property}}`
+// field selects the schema. Branches' `toCandidValue` already include that field, so dispatch
+// is just a forward call (no re-wrapping).
+
+module {
     public type {{classname}} = {
 {{#vendorExtensions.oneOfVariants}}
-        {{#hasType}}#{{name}} : {{dataType}}{{/hasType}}{{^hasType}}#{{name}}{{/hasType}};
+        #{{name}}{{#hasType}} : {{dataType}}{{/hasType}};
 {{/vendorExtensions.oneOfVariants}}
     };
 
-    // JSON sub-module: everything needed for JSON serialization
+    public module JSON {
+        public func toCandidValue(value : {{classname}}) : Candid.Candid =
+            switch (value) {
+{{#vendorExtensions.oneOfVariants}}
+                case ({{#hasType}}#{{name}}(v){{/hasType}}{{^hasType}}#{{name}}{{/hasType}}) {{#hasType}}{{dataType}}.toCandidValue(v){{/hasType}}{{^hasType}}#Text("{{enumValue}}"){{/hasType}};
+{{/vendorExtensions.oneOfVariants}}
+            };
+
+        public func fromCandidValue(candid : Candid.Candid) : ?{{classname}} =
+            switch (candid) {
+                case (#Record(fields)) {
+                    let ?discPair = Array.find<(Text, Candid.Candid)>(fields, func((k, _) : (Text, Candid.Candid)) : Bool = k == "{{vendorExtensions.x-discriminator-property}}") else return null;
+                    switch (discPair.1) {
+                        case (#Text(disc)) {
+                            switch (disc) {
+{{#vendorExtensions.oneOfVariants}}
+{{#discriminatorValue}}
+                                case ("{{discriminatorValue}}") {
+                                    let ?inner = {{dataType}}.fromCandidValue(candid) else return null;
+                                    ?#{{name}}(inner);
+                                };
+{{/discriminatorValue}}
+{{/vendorExtensions.oneOfVariants}}
+                                case _ null;
+                            };
+                        };
+                        case _ null;
+                    };
+                };
+                case _ null;
+            };
+    };
+};
+{{/vendorExtensions.x-is-discriminator-oneof}}
+{{^vendorExtensions.x-is-discriminator-oneof}}
+{{#vendorExtensions.x-is-oneof}}
+// {{classname}}.mo
+// Generic oneOf (no discriminator, no flatten) — wire form is `{"#tag": ...}`.
+import Runtime "mo:core/Runtime";
+
+module {
+    public type {{classname}} = {
+{{#vendorExtensions.oneOfVariants}}
+        #{{name}}{{#hasType}} : {{dataType}}{{/hasType}};
+{{/vendorExtensions.oneOfVariants}}
+    };
+
     public module JSON {
         // Convert oneOf variant to Text for URL parameters
         public func toText(value : {{classname}}) : Text =
             switch (value) {
 {{#vendorExtensions.oneOfVariants}}
-                case ({{#hasType}}#{{name}}(v){{/hasType}}{{^hasType}}#{{name}}{{/hasType}}) {{#hasType}}{{#isNumericType}}Int.toText(v){{/isNumericType}}{{#isEnumType}}{{dataType}}.toJSON(v){{/isEnumType}}{{#isObjectType}}Runtime.unreachable(){{/isObjectType}}{{/hasType}}{{^hasType}}"{{enumValue}}"{{/hasType}};
+                case ({{#hasType}}#{{name}}(v){{/hasType}}{{^hasType}}#{{name}}{{/hasType}}) {{#hasType}}{{#isNumericType}}Int.toText(v){{/isNumericType}}{{#isEnumType}}(switch ({{dataType}}.toCandidValue(v)) { case (#Text(s)) s; case _ Runtime.unreachable() }){{/isEnumType}}{{#isObjectType}}Runtime.unreachable(){{/isObjectType}}{{/hasType}}{{^hasType}}"{{enumValue}}"{{/hasType}};
 {{/vendorExtensions.oneOfVariants}}
             };
 
-        // JSON-facing Motoko type: mirrors JSON structure
-        // Named "JSON" to avoid shadowing the outer {{classname}} type
-        public type JSON = {
-{{#vendorExtensions.oneOfVariants}}
-            {{#hasType}}#{{name}} : {{jsonType}}{{/hasType}}{{^hasType}}#{{name}}{{/hasType}};
-{{/vendorExtensions.oneOfVariants}}
-        };
-
-        // Convert User-facing type to JSON-facing Motoko type
-        public func toJSON(value : {{classname}}) : JSON =
+        public func toCandidValue(value : {{classname}}) : Candid.Candid =
             switch (value) {
 {{#vendorExtensions.oneOfVariants}}
-                case ({{#hasType}}#{{name}}(v){{/hasType}}{{^hasType}}#{{name}}{{/hasType}}) {{#hasType}}#{{name}}{{#needsConversion}}(v){{/needsConversion}}{{^needsConversion}}(v){{/needsConversion}}{{/hasType}}{{^hasType}}#{{name}}{{/hasType}};
+                case ({{#hasType}}#{{name}}(v){{/hasType}}{{^hasType}}#{{name}}{{/hasType}}) #Variant(("{{name}}", {{#hasType}}{{#isNumericType}}#Int(v){{/isNumericType}}{{#isEnumType}}{{dataType}}.toCandidValue(v){{/isEnumType}}{{#isObjectType}}{{dataType}}.toCandidValue(v){{/isObjectType}}{{/hasType}}{{^hasType}}#Null{{/hasType}}));
 {{/vendorExtensions.oneOfVariants}}
             };
 
-        // Convert JSON-facing Motoko type to User-facing type
-        public func fromJSON(json : JSON) : ?{{classname}} =
-            switch (json) {
+        public func fromCandidValue(candid : Candid.Candid) : ?{{classname}} =
+            switch (candid) {
+                case (#Variant(tagAndVal)) {
+                    switch (tagAndVal.0) {
 {{#vendorExtensions.oneOfVariants}}
-                case ({{#hasType}}#{{name}}(v){{/hasType}}{{^hasType}}#{{name}}{{/hasType}}) {{#hasType}}{{#isUnsigned}}if (v < 0) null else ?#{{name}}(Int.abs(v)){{/isUnsigned}}{{^isUnsigned}}?#{{name}}(v){{/isUnsigned}}{{/hasType}}{{^hasType}}?#{{name}}{{/hasType}};
+                        case ("{{name}}") {{#hasType}}{
+                            {{#isNumericType}}let #Int(v) = tagAndVal.1 else return null;{{#isUnsigned}}
+                            if (v < 0) return null;
+                            ?#{{name}}(Int.abs(v)){{/isUnsigned}}{{^isUnsigned}}
+                            ?#{{name}}(v){{/isUnsigned}}{{/isNumericType}}{{^isNumericType}}let ?inner = {{dataType}}.fromCandidValue(tagAndVal.1) else return null;
+                            ?#{{name}}(inner){{/isNumericType}}
+                        }{{/hasType}}{{^hasType}}?#{{name}}{{/hasType}};
 {{/vendorExtensions.oneOfVariants}}
+                        case _ null;
+                    };
+                };
+                case _ null;
             };
-{{#diagnostics}}
-
-        // Pre-flight validation (`diagnostics=true`): oneOf variants currently
-        // pass through (recursive variant inspection is a v2 follow-up).
-        public func validate(_value : {{classname}}) : ?Text = null;
-{{/diagnostics}}
-    }
-}
+    };
+};
 {{/vendorExtensions.x-is-oneof}}
 {{^vendorExtensions.x-is-oneof}}
 // {{classname}}.mo
 
 module {
-    // User-facing type: what application code uses
     public type {{classname}} = {
 {{#vars}}
         {{#description}}
@@ -155,126 +223,51 @@ module {
 {{/vars}}
     };
 
-    // JSON sub-module: everything needed for JSON serialization
     public module JSON {
-        // JSON-facing Motoko type: mirrors JSON structure
-        // Named "JSON" to avoid shadowing the outer {{classname}} type
-        public type JSON = {
-{{#vars}}
-            {{name}} : {{^required}}?{{/required}}{{#isEnumRef}}{{{datatypeWithEnum}}}.JSON{{/isEnumRef}}{{^isEnumRef}}{{#vendorExtensions.xNeedsJsonConversion}}{{{dataType}}}.JSON{{/vendorExtensions.xNeedsJsonConversion}}{{^vendorExtensions.xNeedsJsonConversion}}{{#vendorExtensions.x-is-unsigned}}Int{{/vendorExtensions.x-is-unsigned}}{{^vendorExtensions.x-is-unsigned}}{{{dataType}}}{{/vendorExtensions.x-is-unsigned}}{{/vendorExtensions.xNeedsJsonConversion}}{{/isEnumRef}};
-{{/vars}}
-        };
-
-        // Convert User-facing type to JSON-facing Motoko type
-        public func toJSON(value : {{classname}}) : JSON = {{#vendorExtensions.xNoEnumFields}}value{{/vendorExtensions.xNoEnumFields}}{{^vendorExtensions.xNoEnumFields}}{{#vendorExtensions.xHasPartialTransform}}{ value with
-{{#vars}}
-{{#isEnumRef}}
-            {{name}} = {{#required}}{{{datatypeWithEnum}}}.toJSON(value.{{name}}){{/required}}{{^required}}do ? { {{{datatypeWithEnum}}}.toJSON(value.{{name}}!) }{{/required}};
-{{/isEnumRef}}
-{{^isEnumRef}}
-{{#vendorExtensions.xNeedsJsonConversion}}
-            {{name}} = {{#required}}{{{dataType}}}.toJSON(value.{{name}}){{/required}}{{^required}}do ? { {{{dataType}}}.toJSON(value.{{name}}!) }{{/required}};
-{{/vendorExtensions.xNeedsJsonConversion}}
-{{/isEnumRef}}
-{{/vars}}
-        }{{/vendorExtensions.xHasPartialTransform}}{{^vendorExtensions.xHasPartialTransform}}{
-{{#vars}}
-            {{name}} = {{#required}}{{#isEnumRef}}{{{datatypeWithEnum}}}.toJSON(value.{{name}}){{/isEnumRef}}{{^isEnumRef}}{{#vendorExtensions.xNeedsJsonConversion}}{{{dataType}}}.toJSON(value.{{name}}){{/vendorExtensions.xNeedsJsonConversion}}{{^vendorExtensions.xNeedsJsonConversion}}value.{{name}}{{/vendorExtensions.xNeedsJsonConversion}}{{/isEnumRef}}{{/required}}{{^required}}{{#isEnumRef}}do ? { {{{datatypeWithEnum}}}.toJSON(value.{{name}}!) }{{/isEnumRef}}{{^isEnumRef}}{{#vendorExtensions.xNeedsJsonConversion}}do ? { {{{dataType}}}.toJSON(value.{{name}}!) }{{/vendorExtensions.xNeedsJsonConversion}}{{^vendorExtensions.xNeedsJsonConversion}}value.{{name}}{{/vendorExtensions.xNeedsJsonConversion}}{{/isEnumRef}}{{/required}};
-{{/vars}}
-        }{{/vendorExtensions.xHasPartialTransform}}{{/vendorExtensions.xNoEnumFields}};
-
-        // Convert JSON-facing Motoko type to User-facing type
-        public func fromJSON(json : JSON) : ?{{classname}} {{#vendorExtensions.xNoEnumFields}}= ?json{{/vendorExtensions.xNoEnumFields}}{{^vendorExtensions.xNoEnumFields}}{{#vendorExtensions.xHasPartialTransform}}{
+        public func toCandidValue(value : {{classname}}) : Candid.Candid {
+            let buf = Buffer.Buffer<(Text, Candid.Candid)>({{vars.size}});
 {{#vars}}
 {{#required}}
-{{#isEnumRef}}
-            let ?{{name}} = {{{datatypeWithEnum}}}.fromJSON(json.{{name}}) else return null;
-{{/isEnumRef}}
-{{^isEnumRef}}
-{{#vendorExtensions.xNeedsJsonConversion}}
-            let ?{{name}} = {{{dataType}}}.fromJSON(json.{{name}}) else return null;
-{{/vendorExtensions.xNeedsJsonConversion}}
-{{/isEnumRef}}
-{{/required}}
-{{/vars}}
-            ?{ json with
-{{#vars}}
-{{#isEnumRef}}
-                {{name}}{{#required}}{{/required}}{{^required}} = do ? { {{{datatypeWithEnum}}}.fromJSON(json.{{name}}!)! }{{/required}};
-{{/isEnumRef}}
-{{^isEnumRef}}
-{{#vendorExtensions.xNeedsJsonConversion}}
-                {{name}}{{#required}}{{/required}}{{^required}} = do ? { {{{dataType}}}.fromJSON(json.{{name}}!)! }{{/required}};
-{{/vendorExtensions.xNeedsJsonConversion}}
-{{^vendorExtensions.xNeedsJsonConversion}}
-{{#vendorExtensions.x-is-unsigned}}
-                {{name}}{{#required}} = if (json.{{name}} < 0) return null else Int.abs(json.{{name}}){{/required}}{{^required}} = switch (json.{{name}}) { case (?v) if (v < 0) null else ?Int.abs(v); case null null }{{/required}};
-{{/vendorExtensions.x-is-unsigned}}
-{{/vendorExtensions.xNeedsJsonConversion}}
-{{/isEnumRef}}
-{{/vars}}
-            }
-        }{{/vendorExtensions.xHasPartialTransform}}{{^vendorExtensions.xHasPartialTransform}}{
-{{#vars}}
-{{#required}}
-{{#isEnumRef}}
-            let ?{{name}} = {{{datatypeWithEnum}}}.fromJSON(json.{{name}}) else return null;
-{{/isEnumRef}}
-{{^isEnumRef}}
-{{#vendorExtensions.xNeedsJsonConversion}}
-            let ?{{name}} = {{{dataType}}}.fromJSON(json.{{name}}) else return null;
-{{/vendorExtensions.xNeedsJsonConversion}}
-{{/isEnumRef}}
-{{/required}}
-{{/vars}}
-            ?{
-{{#vars}}
-                {{name}}{{#required}}{{^isEnumRef}}{{^vendorExtensions.xNeedsJsonConversion}}{{#vendorExtensions.x-is-unsigned}} = if (json.{{name}} < 0) return null else Int.abs(json.{{name}}){{/vendorExtensions.x-is-unsigned}}{{^vendorExtensions.x-is-unsigned}} = json.{{name}}{{/vendorExtensions.x-is-unsigned}}{{/vendorExtensions.xNeedsJsonConversion}}{{/isEnumRef}}{{/required}}{{^required}} = {{#isEnumRef}}do ? { {{{datatypeWithEnum}}}.fromJSON(json.{{name}}!)! }{{/isEnumRef}}{{^isEnumRef}}{{#vendorExtensions.xNeedsJsonConversion}}do ? { {{{dataType}}}.fromJSON(json.{{name}}!)! }{{/vendorExtensions.xNeedsJsonConversion}}{{^vendorExtensions.xNeedsJsonConversion}}{{#vendorExtensions.x-is-unsigned}}do ? { let v = json.{{name}}!; if (v < 0) return null else Int.abs(v) }{{/vendorExtensions.x-is-unsigned}}{{^vendorExtensions.x-is-unsigned}}json.{{name}}{{/vendorExtensions.x-is-unsigned}}{{/vendorExtensions.xNeedsJsonConversion}}{{/isEnumRef}}{{/required}};
-{{/vars}}
-            }
-        }{{/vendorExtensions.xHasPartialTransform}}{{/vendorExtensions.xNoEnumFields}};
-{{#diagnostics}}
-
-        // Pre-flight validation (`diagnostics=true`): surface generator-known wire-format
-        // gaps as `?Text`, so api.mustache can `throw Error.reject(msg)` instead of letting
-        // bad JSON reach the upstream API and come back as an opaque 4xx.
-{{#vendorExtensions.x-is-empty-fallback}}
-        public func validate(_value : {{classname}}) : ?Text =
-            ?"openapi-generator(motoko): {{classname}} has no synthesisable JSON form (likely a oneOf<string, …> the codegen could not tag). Override the type or `{{classname}}.JSON.toJSON` in your client to fix the wire format.";
-{{/vendorExtensions.x-is-empty-fallback}}
-{{^vendorExtensions.x-is-empty-fallback}}
-{{#vendorExtensions.x-has-fallback-validation}}
-        public func validate(value : {{classname}}) : ?Text {
-{{#vars}}
-{{#vendorExtensions.x-needs-fallback-validation}}
-{{#required}}
-            switch ({{{dataType}}}.validate(value.{{name}})) {
-                case (?msg) return ?msg;
-                case null ();
-            };
+            buf.add(("{{baseName}}", {{>candid_field_to_required}}));
 {{/required}}
 {{^required}}
             switch (value.{{name}}) {
-                case (?inner) switch ({{{dataType}}}.validate(inner)) {
-                    case (?msg) return ?msg;
-                    case null ();
-                };
+                case (?v__) buf.add(("{{baseName}}", {{>candid_field_to_optional_unwrapped}}));
                 case null ();
             };
 {{/required}}
-{{/vendorExtensions.x-needs-fallback-validation}}
 {{/vars}}
-            null
+            #Record(Buffer.toArray(buf));
         };
-{{/vendorExtensions.x-has-fallback-validation}}
-{{^vendorExtensions.x-has-fallback-validation}}
-        public func validate(_value : {{classname}}) : ?Text = null;
-{{/vendorExtensions.x-has-fallback-validation}}
-{{/vendorExtensions.x-is-empty-fallback}}
-{{/diagnostics}}
-    }
-}
+
+        public func fromCandidValue(candid : Candid.Candid) : ?{{classname}} =
+            switch (candid) {
+                case (#Record(fields)) {
+{{#vars}}
+{{#required}}
+                    let ?{{name}}_field = Array.find<(Text, Candid.Candid)>(fields, func((k, _) : (Text, Candid.Candid)) : Bool = k == "{{baseName}}") else return null;
+                    let ?{{name}} = ({{>candid_field_from_required}}) else return null;
+{{/required}}
+{{^required}}
+                    let {{name}} : {{^required}}?{{/required}}{{{dataType}}} = switch (Array.find<(Text, Candid.Candid)>(fields, func((k, _) : (Text, Candid.Candid)) : Bool = k == "{{baseName}}")) {
+                        case (?{{name}}_field) ({{>candid_field_from_optional}});
+                        case null null;
+                    };
+{{/required}}
+{{/vars}}
+                    ?{
+{{#vars}}
+                        {{name}};
+{{/vars}}
+                    };
+                };
+                case _ null;
+            };
+    };
+};
 {{/vendorExtensions.x-is-oneof}}
+{{/vendorExtensions.x-is-discriminator-oneof}}
+{{/vendorExtensions.x-is-string-or-array-flatten}}
 {{/vendorExtensions.x-is-string-flatten}}
 {{/isEnum}}
 {{/model}}

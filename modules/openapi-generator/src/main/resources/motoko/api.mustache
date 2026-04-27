@@ -7,6 +7,7 @@ import Text "mo:core/Text";
 import Int "mo:core/Int";
 import Blob "mo:core/Blob";
 import Array "mo:core/Array";
+import Buffer "mo:core/Buffer";
 import Error "mo:core/Error";
 import Base64 "mo:core/Base64";
 import { JSON; Candid } "mo:serde-core";
@@ -132,19 +133,11 @@ module {
             {{#isPut}}is_replicated = ?false; // PUT requires non-replicated mode on IC
             {{/isPut}}{{#isDelete}}is_replicated = ?false; // DELETE requires non-replicated mode on IC
             {{/isDelete}}body = {{#bodyParam}}do ? {
-{{#diagnostics}}{{^vendorExtensions.x-body-is-primitive}}{{^vendorExtensions.x-body-is-array}}
-                // Pre-flight validation (`diagnostics=true`): if the request body's type
-                // (or any nested empty-fallback field) carries a generator diagnostic,
-                // throw it now so the consumer's `catch (e) { e.message() }` sees the
-                // explanation directly instead of a downstream HTTP 4xx.
-                switch ({{dataType}}.validate({{paramName}})) {
-                    case (?msg) throw Error.reject(msg);
-                    case null ();
-                };
-{{/vendorExtensions.x-body-is-array}}{{/vendorExtensions.x-body-is-primitive}}{{/diagnostics}}
-                let jsonValue = {{#vendorExtensions.x-body-is-array}}{{#vendorExtensions.x-body-array-element-is-primitive}}{{paramName}}{{/vendorExtensions.x-body-array-element-is-primitive}}{{^vendorExtensions.x-body-array-element-is-primitive}}Array.map<{{{vendorExtensions.x-body-base-type}}}, {{{vendorExtensions.x-body-base-type}}}.JSON>({{paramName}}, {{{vendorExtensions.x-body-base-type}}}.toJSON){{/vendorExtensions.x-body-array-element-is-primitive}}{{/vendorExtensions.x-body-is-array}}{{^vendorExtensions.x-body-is-array}}{{#vendorExtensions.x-body-is-primitive}}{{paramName}}{{/vendorExtensions.x-body-is-primitive}}{{^vendorExtensions.x-body-is-primitive}}{{dataType}}.toJSON({{paramName}}){{/vendorExtensions.x-body-is-primitive}}{{/vendorExtensions.x-body-is-array}};
-                let candidBlob = to_candid(jsonValue);
-                let #ok(jsonText) = JSON.toText(candidBlob, [{{#vendorExtensions.x-body-field-keys}}{{{vendorExtensions.x-body-field-keys}}}{{/vendorExtensions.x-body-field-keys}}], ?{ Candid.defaultOptions with skip_null_fields = true }) else throw Error.reject("Failed to serialize to JSON");
+                let candidValue : Candid.Candid = {{#vendorExtensions.x-body-is-array}}{{#vendorExtensions.x-body-array-element-is-primitive}}#Array(Array.map<{{{vendorExtensions.x-body-base-type}}}, Candid.Candid>({{paramName}}, func(s : Text) : Candid.Candid = #Text(s))){{/vendorExtensions.x-body-array-element-is-primitive}}{{^vendorExtensions.x-body-array-element-is-primitive}}#Array(Array.map<{{{vendorExtensions.x-body-base-type}}}, Candid.Candid>({{paramName}}, {{{vendorExtensions.x-body-base-type}}}.toCandidValue)){{/vendorExtensions.x-body-array-element-is-primitive}}{{/vendorExtensions.x-body-is-array}}{{^vendorExtensions.x-body-is-array}}{{#vendorExtensions.x-body-is-primitive}}#Text({{paramName}}){{/vendorExtensions.x-body-is-primitive}}{{^vendorExtensions.x-body-is-primitive}}{{dataType}}.toCandidValue({{paramName}}){{/vendorExtensions.x-body-is-primitive}}{{/vendorExtensions.x-body-is-array}};
+                let #ok(blob) = Candid.encodeOne(candidValue, ?{ Candid.defaultOptions with skip_null_fields = true })
+                    else throw Error.reject("Failed to encode body to Candid");
+                let #ok(jsonText) = JSON.toText(blob, [], ?{ Candid.defaultOptions with skip_null_fields = true })
+                    else throw Error.reject("Failed to serialize body to JSON");
                 Text.encodeUtf8(jsonText)
             }{{/bodyParam}}{{^bodyParam}}null{{/bodyParam}};
         };
@@ -161,57 +154,52 @@ module {
                 case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to decode response body as UTF-8"{{#diagnostics}} # " (" # Int.toText(response.body.size()) # " bytes of non-UTF-8 data — server may have returned binary, gzipped, or non-UTF-8-charset content)"{{/diagnostics}});
             }) |>
             (switch (JSON.fromText(_, null)) {
-                case (#ok(blob)) blob;
+                case (#ok(blob__)) blob__;
                 case (#err(msg)) throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to parse JSON: " # msg{{#diagnostics}} # " — server returned: " # (switch (Text.decodeUtf8(response.body)) { case (?t) t; case null "(undecodable bytes)" }){{/diagnostics}});
             }) |>
+            (switch (Candid.decodeOne(_, [], null)) {
+                case (#ok(c__)) c__;
+                case (#err(msg)) throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to decode Candid: " # msg{{#diagnostics}} # " — server returned: " # (switch (Text.decodeUtf8(response.body)) { case (?t) t; case null "(undecodable bytes)" }){{/diagnostics}});
+            }) |>
             {{#vendorExtensions.x-return-is-array}}
-            {{#vendorExtensions.x-return-array-element-is-primitive}}
-            from_candid(_) : ?[{{{vendorExtensions.x-return-base-type}}}] |>
             (switch (_) {
-                case (?result) result;
-                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response"{{#diagnostics}} # " — server returned: " # (switch (Text.decodeUtf8(response.body)) { case (?t) t; case null "(undecodable bytes)" }){{/diagnostics}});
-            })
-            {{/vendorExtensions.x-return-array-element-is-primitive}}
-            {{^vendorExtensions.x-return-array-element-is-primitive}}
-            from_candid(_) : ?[{{{vendorExtensions.x-return-base-type}}}.JSON] |>
-            (switch (_) {
-                case (?jsonArray) {
-                    let converted = Array.filterMap<{{{vendorExtensions.x-return-base-type}}}.JSON, {{{vendorExtensions.x-return-base-type}}}>(jsonArray, {{{vendorExtensions.x-return-base-type}}}.fromJSON);
-                    if (converted.size() != jsonArray.size()) {
-                        throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to convert some array elements to {{{vendorExtensions.x-return-base-type}}}");
+                case (#Array(xs__)) {
+                    let buf__ = Buffer.Buffer<{{{vendorExtensions.x-return-base-type}}}>(xs__.size());
+                    for (c__ in xs__.values()) {
+                        {{#vendorExtensions.x-return-array-element-is-primitive}}let #Text(s__) = c__ else throw Error.reject("HTTP " # Int.toText(response.status) # ": Expected array of strings");
+                        buf__.add(s__);{{/vendorExtensions.x-return-array-element-is-primitive}}{{^vendorExtensions.x-return-array-element-is-primitive}}let ?v__ = {{{vendorExtensions.x-return-base-type}}}.fromCandidValue(c__) else throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to convert array element to {{{vendorExtensions.x-return-base-type}}}");
+                        buf__.add(v__);{{/vendorExtensions.x-return-array-element-is-primitive}}
                     };
-                    converted
+                    Buffer.toArray(buf__);
                 };
-                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response"{{#diagnostics}} # " — server returned: " # (switch (Text.decodeUtf8(response.body)) { case (?t) t; case null "(undecodable bytes)" }){{/diagnostics}});
+                case _ throw Error.reject("HTTP " # Int.toText(response.status) # ": Expected JSON array"{{#diagnostics}} # " — server returned: " # (switch (Text.decodeUtf8(response.body)) { case (?t) t; case null "(undecodable bytes)" }){{/diagnostics}});
             })
-            {{/vendorExtensions.x-return-array-element-is-primitive}}
             {{/vendorExtensions.x-return-is-array}}
             {{^vendorExtensions.x-return-is-array}}
             {{#vendorExtensions.x-return-is-primitive}}
-            from_candid(_) : ?{{{returnType}}} |>
             (switch (_) {
-                case (?result) result;
-                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response"{{#diagnostics}} # " — server returned: " # (switch (Text.decodeUtf8(response.body)) { case (?t) t; case null "(undecodable bytes)" }){{/diagnostics}});
+                {{#vendorExtensions.x-return-is-text}}case (#Text(s__)) s__;{{/vendorExtensions.x-return-is-text}}{{^vendorExtensions.x-return-is-text}}case (#Int(i__)) i__;{{/vendorExtensions.x-return-is-text}}
+                case _ throw Error.reject("HTTP " # Int.toText(response.status) # ": Unexpected primitive shape");
             })
             {{/vendorExtensions.x-return-is-primitive}}
             {{^vendorExtensions.x-return-is-primitive}}
             {{#vendorExtensions.x-return-is-map}}
-            from_candid(_) : ?[(Text, {{{vendorExtensions.x-return-map-value-type}}})] |>
             (switch (_) {
-                case (?pairs) fromIter<Text, {{{vendorExtensions.x-return-map-value-type}}}>(pairs.values(), Text.compare);
-                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response"{{#diagnostics}} # " — server returned: " # (switch (Text.decodeUtf8(response.body)) { case (?t) t; case null "(undecodable bytes)" }){{/diagnostics}});
+                case (#Record(pairs__)) {
+                    let buf__ = Buffer.Buffer<(Text, {{{vendorExtensions.x-return-map-value-type}}})>(pairs__.size());
+                    for ((k__, c__) in pairs__.values()) {
+                        let ?v__ = (switch (c__) { case (#Text(s)) ?s; case _ null }) else throw Error.reject("HTTP " # Int.toText(response.status) # ": map value not Text");
+                        buf__.add((k__, v__));
+                    };
+                    fromIter<Text, {{{vendorExtensions.x-return-map-value-type}}}>(Buffer.toArray(buf__).values(), Text.compare)
+                };
+                case _ throw Error.reject("HTTP " # Int.toText(response.status) # ": Expected JSON object for Map");
             })
             {{/vendorExtensions.x-return-is-map}}
             {{^vendorExtensions.x-return-is-map}}
-            from_candid(_) : ?{{{returnType}}}.JSON |>
-            (switch (_) {
-                case (?jsonValue) {
-                    switch ({{{returnType}}}.fromJSON(jsonValue)) {
-                        case (?value) value;
-                        case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to convert response to {{{returnType}}}");
-                    }
-                };
-                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response"{{#diagnostics}} # " — server returned: " # (switch (Text.decodeUtf8(response.body)) { case (?t) t; case null "(undecodable bytes)" }){{/diagnostics}});
+            (switch ({{{returnType}}}.fromCandidValue(_)) {
+                case (?value) value;
+                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to convert response to {{{returnType}}}"{{#diagnostics}} # " — server returned: " # (switch (Text.decodeUtf8(response.body)) { case (?t) t; case null "(undecodable bytes)" }){{/diagnostics}});
             })
             {{/vendorExtensions.x-return-is-map}}
             {{/vendorExtensions.x-return-is-primitive}}
@@ -230,16 +218,15 @@ module {
             if (response.status == {{code}}) {
                 let errorDetail = if (responseText != "") {
                     switch (JSON.fromText(responseText, null)) {
-                        case (#ok(blob)) {
-                            let parsedJson : ?{{{dataType}}}.JSON = from_candid(blob);
-                            switch (parsedJson) {
-                                case (?jsonValue) {
-                                    switch ({{{dataType}}}.fromJSON(jsonValue)) {
+                        case (#ok(blob__)) {
+                            switch (Candid.decodeOne(blob__, [], null)) {
+                                case (#ok(c__)) {
+                                    switch ({{{dataType}}}.fromCandidValue(c__)) {
                                         case (?err) " - " # debug_show(err);
                                         case null " - " # responseText;
-                                    }
+                                    };
                                 };
-                                case null " - " # responseText;
+                                case (#err(_)) " - " # responseText;
                             };
                         };
                         case (#err(_)) " - " # responseText;

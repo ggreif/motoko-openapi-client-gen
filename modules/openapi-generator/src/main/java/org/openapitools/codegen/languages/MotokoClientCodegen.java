@@ -519,6 +519,30 @@ public class MotokoClientCodegen extends DefaultCodegen implements CodegenConfig
             if (!oneOfList.isEmpty()) {
                 model.vendorExtensions.put("x-is-oneof", true);
 
+                // OpenAPI discriminator: when present, the wire JSON is a flat object
+                // with a top-level discriminator field (e.g. "role": "user") instead of
+                // a tagged variant wrap. Extract the (ref → mapping-key) reverse map so
+                // each branch can be named by its discriminator value.
+                Map<String, String> refToDiscriminatorKey = null;
+                String discriminatorPropertyName = null;
+                CodegenDiscriminator disc = model.getDiscriminator();
+                if (disc != null && disc.getPropertyName() != null && disc.getMappedModels() != null
+                        && !disc.getMappedModels().isEmpty()) {
+                    discriminatorPropertyName = disc.getPropertyName();
+                    refToDiscriminatorKey = new HashMap<>();
+                    for (CodegenDiscriminator.MappedModel mm : disc.getMappedModels()) {
+                        if (mm.getModelName() != null && mm.getMappingName() != null) {
+                            refToDiscriminatorKey.put(mm.getModelName(), mm.getMappingName());
+                        }
+                    }
+                    if (!refToDiscriminatorKey.isEmpty()) {
+                        model.vendorExtensions.put("x-is-discriminator-oneof", true);
+                        model.vendorExtensions.put("x-discriminator-property", discriminatorPropertyName);
+                    } else {
+                        refToDiscriminatorKey = null;
+                    }
+                }
+
                 // Build variant cases for oneOf options
                 List<Map<String, Object>> oneOfVariants = new ArrayList<>();
                 boolean hasUnsignedVariants = false;
@@ -559,8 +583,15 @@ public class MotokoClientCodegen extends DefaultCodegen implements CodegenConfig
                     Map<String, Object> variant = new HashMap<>();
 
                     // Determine variant name and type
-                    String variantName = getOneOfVariantName(oneOfProp);
+                    String variantName = getOneOfVariantName(oneOfProp, refToDiscriminatorKey);
                     String variantType = oneOfProp.dataType;
+                    // For discriminator-oneOf, surface the wire literal too (Mustache uses it).
+                    if (refToDiscriminatorKey != null && oneOfProp.complexType != null) {
+                        String discriminatorValue = refToDiscriminatorKey.get(oneOfProp.complexType);
+                        if (discriminatorValue != null) {
+                            variant.put("discriminatorValue", discriminatorValue);
+                        }
+                    }
                     String jsonType = variantType;  // JSON-facing type (may differ for Nat->Int)
 
                     // For integer types with minimum >= 0, convert to Nat in user-facing type
@@ -631,6 +662,30 @@ public class MotokoClientCodegen extends DefaultCodegen implements CodegenConfig
      * For simple types, use the type name. For enum strings, use the enum value.
      */
     private String getOneOfVariantName(CodegenProperty prop) {
+        return getOneOfVariantName(prop, null);
+    }
+
+    /**
+     * Pick a Motoko variant tag for one branch of a oneOf.
+     *
+     * When the parent oneOf carries an OpenAPI {@code discriminator.mapping}, prefer the
+     * mapping key (e.g. {@code "user"}) — it is both the wire-format literal AND a clean
+     * Motoko identifier, replacing the schema-name fallback (e.g.
+     * {@code "ChatCompletionRequestUserMessage"}).
+     *
+     * @param prop the oneOf branch
+     * @param refToDiscriminatorKey ref-name → discriminator value (null when no discriminator)
+     */
+    private String getOneOfVariantName(CodegenProperty prop, Map<String, String> refToDiscriminatorKey) {
+        // Discriminator-aware: if the parent has a mapping for this branch's referenced
+        // schema, the wire literal is *the* right Motoko variant tag.
+        if (refToDiscriminatorKey != null && prop.complexType != null) {
+            String discriminatorValue = refToDiscriminatorKey.get(prop.complexType);
+            if (discriminatorValue != null) {
+                return toVarName(discriminatorValue);
+            }
+        }
+
         // For enum types, use the first enum value or a sanitized name
         if (Boolean.TRUE.equals(prop.isEnum) && prop.allowableValues != null) {
             @SuppressWarnings("unchecked")
@@ -811,18 +866,6 @@ public class MotokoClientCodegen extends DefaultCodegen implements CodegenConfig
                     if (hasUnsignedFields) {
                         model.vendorExtensions.put("x-has-unsigned-fields", true);
                     }
-
-                    // Detect "empty fallback" models — no vars, not enum, not oneOf-tagged.
-                    // These are typically `oneOf<string, …>` schemas that the generator could not
-                    // synthesise into a tagged union, so the resulting type is `{}` and JSON
-                    // serialisation produces `{}`, which downstream APIs reject. Mark them so
-                    // model.mustache can emit a `validate` function (when `diagnostics` is on)
-                    // and so postProcessAllModels can mark their use sites in other models.
-                    if ((model.vars == null || model.vars.isEmpty())
-                            && !Boolean.TRUE.equals(model.isEnum)
-                            && !Boolean.TRUE.equals(model.vendorExtensions.get("x-is-oneof"))) {
-                        model.vendorExtensions.put("x-is-empty-fallback", true);
-                    }
                 }
             }
         }
@@ -946,35 +989,47 @@ public class MotokoClientCodegen extends DefaultCodegen implements CodegenConfig
             }
             if (allStringLike) {
                 m.vendorExtensions.put("x-is-string-flatten", true);
-                // Suppress the empty-fallback diagnostic — we have a real type now.
-                m.vendorExtensions.remove("x-is-empty-fallback");
             }
         }
 
-        // EMPTY-FALLBACK PASS: collect classnames of empty-fallback models, then mark
-        // every field whose `dataType` references one. Used by model.mustache (when
-        // `diagnostics` is on) to emit a `validate` function that recurses into those
-        // fields and bubbles up a `?Text` diagnostic; api.mustache then translates a
-        // non-null result into a `throw Error.reject(msg)` at the call site.
-        Set<String> emptyFallbackNames = new HashSet<>();
-        for (CodegenModel model : allModels) {
-            if (Boolean.TRUE.equals(model.vendorExtensions.get("x-is-empty-fallback"))) {
-                emptyFallbackNames.add(model.classname);
+        // STRING-OR-ARRAY-FLATTEN PASS: a oneOf with exactly two branches, one a string
+        // (primitive `Text` or string-flatten enum) and one an `[X]`, has the wire form
+        // "either a JSON string or a JSON array" — never a tagged variant. Mark so
+        // model.mustache emits a discriminated `{ #string : Text; #parts : [X] }` type
+        // whose `toCandidValue` projects to `#Text` or `#Array` directly. Catches the
+        // OpenAI `ChatCompletionRequestUserMessageContent` family.
+        for (CodegenModel m : allModels) {
+            if (m.getComposedSchemas() == null) continue;
+            if (Boolean.TRUE.equals(m.vendorExtensions.get("x-is-string-flatten"))) continue;
+            if (Boolean.TRUE.equals(m.vendorExtensions.get("x-is-discriminator-oneof"))) continue;
+            List<CodegenProperty> composedList = null;
+            if (m.getComposedSchemas().getOneOf() != null && !m.getComposedSchemas().getOneOf().isEmpty()) {
+                composedList = m.getComposedSchemas().getOneOf();
+            } else if (m.getComposedSchemas().getAnyOf() != null && !m.getComposedSchemas().getAnyOf().isEmpty()) {
+                composedList = m.getComposedSchemas().getAnyOf();
             }
-        }
-        if (!emptyFallbackNames.isEmpty()) {
-            for (CodegenModel model : allModels) {
-                if (model.vars == null || model.vars.isEmpty()) continue;
-                boolean any = false;
-                for (CodegenProperty prop : model.vars) {
-                    if (prop.dataType != null && emptyFallbackNames.contains(prop.dataType)) {
-                        prop.vendorExtensions.put("x-needs-fallback-validation", true);
-                        any = true;
-                    }
+            if (composedList == null || composedList.size() != 2) continue;
+            CodegenProperty stringBranch = null;
+            CodegenProperty arrayBranch = null;
+            for (CodegenProperty p : composedList) {
+                boolean isStringLike = "Text".equals(p.dataType)
+                        || (p.complexType != null && stringEnumClasses.contains(p.complexType));
+                if (isStringLike) {
+                    stringBranch = p;
+                } else if (Boolean.TRUE.equals(p.isArray)) {
+                    arrayBranch = p;
                 }
-                if (any) {
-                    model.vendorExtensions.put("x-has-fallback-validation", true);
-                }
+            }
+            if (stringBranch != null && arrayBranch != null) {
+                m.vendorExtensions.put("x-is-string-or-array-flatten", true);
+                String elementType = arrayBranch.items != null ? arrayBranch.items.dataType : "Text";
+                m.vendorExtensions.put("x-string-or-array-element-type", elementType);
+                // Whether the element type is a Motoko model with its own JSON sub-module
+                // (records / oneOfs we generate) vs a plain primitive `Text`. Mustache uses
+                // this to decide whether to recurse via `<T>.JSON.toCandidValue` or pass
+                // through directly.
+                boolean elementIsModel = arrayBranch.items != null && arrayBranch.items.complexType != null;
+                m.vendorExtensions.put("x-string-or-array-element-is-model", elementIsModel);
             }
         }
 
