@@ -54,6 +54,15 @@ module {
 {{/allowableValues}}
                 case _ null;
             };
+
+        public func toText(value : {{classname}}) : Text =
+            switch (value) {
+{{#allowableValues}}
+{{#enumVars}}
+                case (#{{name}}) {{#isString}}"{{value}}"{{/isString}}{{^isString}}debug_show({{value}}){{/isString}};
+{{/enumVars}}
+{{/allowableValues}}
+            };
     };
 };
 {{/isEnum}}
@@ -72,6 +81,7 @@ module {
                 case (#Text(s)) ?s;
                 case _ null;
             };
+        public func toText(value : {{classname}}) : Text = value;
     };
 };
 {{/vendorExtensions.x-is-string-flatten}}
@@ -132,6 +142,13 @@ module {
             switch (value) {
 {{#vendorExtensions.oneOfVariants}}
                 case ({{#hasType}}#{{name}}(v){{/hasType}}{{^hasType}}#{{name}}{{/hasType}}) {{#hasType}}{{dataType}}.toCandidValue(v){{/hasType}}{{^hasType}}#Text("{{enumValue}}"){{/hasType}};
+{{/vendorExtensions.oneOfVariants}}
+            };
+
+        public func toText(value : {{classname}}) : Text =
+            switch (value) {
+{{#vendorExtensions.oneOfVariants}}
+                case ({{#hasType}}#{{name}}(_){{/hasType}}{{^hasType}}#{{name}}{{/hasType}}) "{{discriminatorValue}}";
 {{/vendorExtensions.oneOfVariants}}
             };
 

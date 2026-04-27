@@ -80,8 +80,8 @@ module {
     public func {{operationId}}(config : Config{{#allParams}}, {{paramName}} : {{#isNullable}}?{{/isNullable}}{{dataType}}{{/allParams}}) : async* {{#returnType}}{{{returnType}}}{{/returnType}}{{^returnType}}(){{/returnType}} {
         let {baseUrl; cycles} = config;
         let baseUrl__ = baseUrl # "{{path}}"{{#pathParams}}
-            |> Text.replace(_, #text "{{=<% %>=}}{<%baseName%>}<%={{ }}=%>", {{#vendorExtensions.x-is-oneof-type}}{{{dataType}}}.toText({{paramName}}){{/vendorExtensions.x-is-oneof-type}}{{^vendorExtensions.x-is-oneof-type}}{{#isEnum}}{{{dataType}}}.toJSON({{paramName}}){{/isEnum}}{{#isEnumRef}}{{{dataType}}}.toJSON({{paramName}}){{/isEnumRef}}{{^isEnum}}{{^isEnumRef}}{{#isModel}}{{{dataType}}}.toJSON({{paramName}}){{/isModel}}{{^isModel}}{{#isString}}{{paramName}}{{/isString}}{{^isString}}{{#isInteger}}Int.toText({{paramName}}){{/isInteger}}{{^isInteger}}debug_show({{paramName}}){{/isInteger}}{{/isString}}{{/isModel}}{{/isEnumRef}}{{/isEnum}}{{/vendorExtensions.x-is-oneof-type}}){{/pathParams}}{{#queryParams}}{{#-first}}
-            # "?"{{/-first}}{{^-first}} # "&"{{/-first}} # "{{baseName}}=" # {{#vendorExtensions.x-is-oneof-type}}{{{dataType}}}.toText({{paramName}}){{/vendorExtensions.x-is-oneof-type}}{{^vendorExtensions.x-is-oneof-type}}{{#isEnum}}{{{dataType}}}.toJSON({{paramName}}){{/isEnum}}{{#isEnumRef}}{{{dataType}}}.toJSON({{paramName}}){{/isEnumRef}}{{^isEnum}}{{^isEnumRef}}{{#isModel}}{{{dataType}}}.toJSON({{paramName}}){{/isModel}}{{^isModel}}{{#isString}}{{paramName}}{{/isString}}{{^isString}}{{#isInteger}}Int.toText({{paramName}}){{/isInteger}}{{^isInteger}}debug_show({{paramName}}){{/isInteger}}{{/isString}}{{/isModel}}{{/isEnumRef}}{{/isEnum}}{{/vendorExtensions.x-is-oneof-type}}{{/queryParams}};
+            |> Text.replace(_, #text "{{=<% %>=}}{<%baseName%>}<%={{ }}=%>", {{#vendorExtensions.x-is-oneof-type}}{{{dataType}}}.toText({{paramName}}){{/vendorExtensions.x-is-oneof-type}}{{^vendorExtensions.x-is-oneof-type}}{{#isEnum}}{{{dataType}}}.toText({{paramName}}){{/isEnum}}{{#isEnumRef}}{{{dataType}}}.toText({{paramName}}){{/isEnumRef}}{{^isEnum}}{{^isEnumRef}}{{#isModel}}{{{dataType}}}.toText({{paramName}}){{/isModel}}{{^isModel}}{{#isString}}{{paramName}}{{/isString}}{{^isString}}{{#isInteger}}Int.toText({{paramName}}){{/isInteger}}{{^isInteger}}debug_show({{paramName}}){{/isInteger}}{{/isString}}{{/isModel}}{{/isEnumRef}}{{/isEnum}}{{/vendorExtensions.x-is-oneof-type}}){{/pathParams}}{{#queryParams}}{{#-first}}
+            # "?"{{/-first}}{{^-first}} # "&"{{/-first}} # "{{baseName}}=" # {{#vendorExtensions.x-is-oneof-type}}{{{dataType}}}.toText({{paramName}}){{/vendorExtensions.x-is-oneof-type}}{{^vendorExtensions.x-is-oneof-type}}{{#isEnum}}{{{dataType}}}.toText({{paramName}}){{/isEnum}}{{#isEnumRef}}{{{dataType}}}.toText({{paramName}}){{/isEnumRef}}{{^isEnum}}{{^isEnumRef}}{{#isModel}}{{{dataType}}}.toText({{paramName}}){{/isModel}}{{^isModel}}{{#isString}}{{paramName}}{{/isString}}{{^isString}}{{#isInteger}}Int.toText({{paramName}}){{/isInteger}}{{^isInteger}}debug_show({{paramName}}){{/isInteger}}{{/isString}}{{/isModel}}{{/isEnumRef}}{{/isEnum}}{{/vendorExtensions.x-is-oneof-type}}{{/queryParams}};
 
         // Add API key as query parameter if using apiKey auth
         let url = switch (config.auth) {
@@ -96,7 +96,7 @@ module {
 
         let baseHeaders = [
             { name = "Content-Type"; value = "application/json; charset=utf-8" }{{#headerParams}},
-            { name = "{{baseName}}"; value = {{#isEnum}}{{{dataType}}}.toJSON({{paramName}}){{/isEnum}}{{#isEnumRef}}{{{dataType}}}.toJSON({{paramName}}){{/isEnumRef}}{{^isEnum}}{{^isEnumRef}}{{#isModel}}{{{dataType}}}.toJSON({{paramName}}){{/isModel}}{{^isModel}}{{#isString}}{{paramName}}{{/isString}}{{^isString}}debug_show({{paramName}}){{/isString}}{{/isModel}}{{/isEnumRef}}{{/isEnum}} }{{/headerParams}}
+            { name = "{{baseName}}"; value = {{#isEnum}}{{{dataType}}}.toText({{paramName}}){{/isEnum}}{{#isEnumRef}}{{{dataType}}}.toText({{paramName}}){{/isEnumRef}}{{^isEnum}}{{^isEnumRef}}{{#isModel}}{{{dataType}}}.toText({{paramName}}){{/isModel}}{{^isModel}}{{#isString}}{{paramName}}{{/isString}}{{^isString}}debug_show({{paramName}}){{/isString}}{{/isModel}}{{/isEnumRef}}{{/isEnum}} }{{/headerParams}}
         ];
 
         // Build authentication headers based on auth type
@@ -157,7 +157,7 @@ module {
                 case (#ok(blob__)) blob__;
                 case (#err(msg)) throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to parse JSON: " # msg{{#diagnostics}} # " — server returned: " # (switch (Text.decodeUtf8(response.body)) { case (?t) t; case null "(undecodable bytes)" }){{/diagnostics}});
             }) |>
-            (switch (Candid.decodeOne(_, [], null)) {
+            (switch (Candid.Decoder.decodeOne(_, [], null)) {
                 case (#ok(c__)) c__;
                 case (#err(msg)) throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to decode Candid: " # msg{{#diagnostics}} # " — server returned: " # (switch (Text.decodeUtf8(response.body)) { case (?t) t; case null "(undecodable bytes)" }){{/diagnostics}});
             }) |>
@@ -219,7 +219,7 @@ module {
                 let errorDetail = if (responseText != "") {
                     switch (JSON.fromText(responseText, null)) {
                         case (#ok(blob__)) {
-                            switch (Candid.decodeOne(blob__, [], null)) {
+                            switch (Candid.Decoder.decodeOne(blob__, [], null)) {
                                 case (#ok(c__)) {
                                     switch ({{{dataType}}}.fromCandidValue(c__)) {
                                         case (?err) " - " # debug_show(err);
