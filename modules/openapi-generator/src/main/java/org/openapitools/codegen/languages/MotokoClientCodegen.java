@@ -688,6 +688,8 @@ public class MotokoClientCodegen extends DefaultCodegen implements CodegenConfig
                 p.isFloat = true; break;
             case "Bool":
                 p.isBoolean = true; break;
+            case "Blob":
+                p.vendorExtensions.put("x-is-blob", true); break;
         }
         // Recurse into nested items (arrays of arrays, etc.)
         if (p.items != null) backfillPrimitiveFlags(p.items);
@@ -710,7 +712,7 @@ public class MotokoClientCodegen extends DefaultCodegen implements CodegenConfig
         if (refToDiscriminatorKey != null && prop.complexType != null) {
             String discriminatorValue = refToDiscriminatorKey.get(prop.complexType);
             if (discriminatorValue != null) {
-                return toVarName(discriminatorValue);
+                return toVarName(discriminatorValue.replaceAll("[^A-Za-z0-9_]", "_"));
             }
         }
 
@@ -1176,10 +1178,32 @@ public class MotokoClientCodegen extends DefaultCodegen implements CodegenConfig
                     if (dataTypeObj instanceof String) {
                         String discriminatorValue = refToDiscriminatorKey.get((String) dataTypeObj);
                         if (discriminatorValue != null) {
-                            variant.put("name", toVarName(discriminatorValue));
+                            variant.put("name", toVarName(discriminatorValue.replaceAll("[^A-Za-z0-9_]", "_")));
                             variant.put("discriminatorValue", discriminatorValue);
                         }
                     }
+                }
+            }
+        }
+
+        // ANY-PASSTHROUGH PASS: openapi-generator emits `Any` for properties typed
+        // `type: object` with no `properties:` block (Twitter's `Geo.properties` etc.).
+        // The user-facing type stays `Candid.Candid` (serde-core's ADT) and to/from-side
+        // use identity passthrough — the generic JSON value flows through unchanged.
+        for (CodegenModel m : allModels) {
+            if (m.vars == null) continue;
+            for (CodegenProperty p : m.vars) {
+                if ("Any".equals(p.dataType)) {
+                    p.dataType = "Candid.Candid";
+                    p.datatypeWithEnum = "Candid.Candid";
+                    p.vendorExtensions.put("x-is-any-passthrough", true);
+                    // Force the model to import Candid (already imported via the
+                    // `import { Candid } "mo:serde-core";` line; nothing extra needed).
+                }
+                if (p.items != null && "Any".equals(p.items.dataType)) {
+                    p.items.dataType = "Candid.Candid";
+                    p.items.datatypeWithEnum = "Candid.Candid";
+                    p.items.vendorExtensions.put("x-is-any-passthrough", true);
                 }
             }
         }
@@ -1208,7 +1232,22 @@ public class MotokoClientCodegen extends DefaultCodegen implements CodegenConfig
         for (CodegenModel m : allModels) {
             if (m.vars == null) continue;
             for (CodegenProperty p : m.vars) {
-                if (p.items != null) backfillPrimitiveFlags(p.items);
+                backfillPrimitiveFlags(p);
+                if (p.items != null) {
+                    // Reconcile inconsistency: the existing fromProperty override converts
+                    // Int-with-minimum>=0 to Nat at the items level, but the outer array
+                    // `dataType` is constructed before items conversion and keeps "[Int]".
+                    // If outer is signed but items were promoted to Nat, roll items back
+                    // to Int so the type-checker sees a consistent `[Int]`.
+                    if ("Nat".equals(p.items.dataType) && p.dataType != null
+                            && (p.dataType.contains("[Int]") || p.dataType.contains("[Int32]")
+                                || p.dataType.contains("[Int64]"))) {
+                        p.items.dataType = "Int";
+                        p.items.datatypeWithEnum = "Int";
+                        p.items.vendorExtensions.remove("x-is-unsigned");
+                    }
+                    backfillPrimitiveFlags(p.items);
+                }
             }
         }
 
