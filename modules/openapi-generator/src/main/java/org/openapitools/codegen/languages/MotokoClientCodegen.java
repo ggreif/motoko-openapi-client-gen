@@ -1184,6 +1184,22 @@ public class MotokoClientCodegen extends DefaultCodegen implements CodegenConfig
             }
         }
 
+        // NULLABLE-DEMOTES-TO-OPTIONAL PASS: OpenAPI's `nullable: true` permits the wire
+        // value to be JSON `null`. The Motoko user-facing type must therefore allow `null`
+        // — which means *optional* (`?T`). Demote `required + nullable` to non-required
+        // so the downstream Mustache emission picks the optional path uniformly. The
+        // OpenAI chat response carries `logprobs: null` for choices without logprobs;
+        // without this, `CreateChatCompletionResponseChoicesInner.fromCandidValue` fails
+        // to decode the response and the entire chat round-trip dies.
+        for (CodegenModel m : allModels) {
+            if (m.vars == null) continue;
+            for (CodegenProperty p : m.vars) {
+                if (p.required && p.isNullable) {
+                    p.required = false;
+                }
+            }
+        }
+
         // PRIMITIVE-FLAGS-ON-ITEMS PASS: openapi-generator sometimes leaves the `isString` /
         // `isInteger` / etc. flags unset on the `items` of a Map (or Array) when the value
         // type is a Motoko primitive (`Text`, `Int`, …). Without these flags the Mustache

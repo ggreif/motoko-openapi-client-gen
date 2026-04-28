@@ -4,11 +4,11 @@ switch ({{name}}_field.1) {
                             for (c__ in xs__.values()) {
                                 {{#items}}{{#isString}}let #Text(s__) = c__ else return null;
                                 List.add(buf__, s__);{{/isString}}{{^isString}}{{#isBoolean}}let #Bool(b__) = c__ else return null;
-                                List.add(buf__, b__);{{/isBoolean}}{{^isBoolean}}{{#isFloat}}let #Float(f__) = c__ else return null;
-                                List.add(buf__, f__);{{/isFloat}}{{^isFloat}}{{#isDouble}}let #Float(f__) = c__ else return null;
+                                List.add(buf__, b__);{{/isBoolean}}{{^isBoolean}}{{#isFloat}}let ?f__ = (switch (c__) { case (#Float(g)) ?g; case (#Int(j)) ?Float.fromInt(j); case (#Nat(k)) ?Float.fromInt(k); case _ null }) else return null;
+                                List.add(buf__, f__);{{/isFloat}}{{^isFloat}}{{#isDouble}}let ?f__ = (switch (c__) { case (#Float(g)) ?g; case (#Int(j)) ?Float.fromInt(j); case (#Nat(k)) ?Float.fromInt(k); case _ null }) else return null;
                                 List.add(buf__, f__);{{/isDouble}}{{^isDouble}}{{#isNumber}}let #Float(f__) = c__ else return null;
-                                List.add(buf__, f__);{{/isNumber}}{{^isNumber}}{{#isInteger}}let #Int(i__) = c__ else return null;
-                                List.add(buf__, i__);{{/isInteger}}{{^isInteger}}{{#isLong}}let #Int(i__) = c__ else return null;
+                                List.add(buf__, f__);{{/isNumber}}{{^isNumber}}{{#isInteger}}let ?i__ = (switch (c__) { case (#Int(j)) ?j; case (#Nat(k)) ?k; case _ null }) else return null;
+                                List.add(buf__, i__);{{/isInteger}}{{^isInteger}}{{#isLong}}let ?i__ = (switch (c__) { case (#Int(j)) ?j; case (#Nat(k)) ?k; case _ null }) else return null;
                                 List.add(buf__, i__);{{/isLong}}{{^isLong}}{{#isEnumRef}}let ?e__ = {{{datatypeWithEnum}}}.fromCandidValue(c__) else return null;
                                 List.add(buf__, e__);{{/isEnumRef}}{{^isEnumRef}}let ?m__ = {{{dataType}}}.fromCandidValue(c__) else return null;
                                 List.add(buf__, m__);{{/isEnumRef}}{{/isLong}}{{/isInteger}}{{/isNumber}}{{/isDouble}}{{/isFloat}}{{/isBoolean}}{{/isString}}{{/items}}
