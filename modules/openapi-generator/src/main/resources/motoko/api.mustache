@@ -155,7 +155,7 @@ module {
                 case (#ok(blob__)) blob__;
                 case (#err(msg)) throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to parse JSON: " # msg{{#diagnostics}} # " — server returned: " # (switch (Text.decodeUtf8(response.body)) { case (?t) t; case null "(undecodable bytes)" }){{/diagnostics}});
             }) |>
-            (switch (Candid.Decoder.decodeOne(_, [], null)) {
+            (switch (Candid.decodeOne(_, [], null)) {
                 case (#ok(c__)) c__;
                 case (#err(msg)) throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to decode Candid: " # msg{{#diagnostics}} # " — server returned: " # (switch (Text.decodeUtf8(response.body)) { case (?t) t; case null "(undecodable bytes)" }){{/diagnostics}});
             }) |>
@@ -217,7 +217,7 @@ module {
                 let errorDetail = if (responseText != "") {
                     switch (JSON.fromText(responseText, null)) {
                         case (#ok(blob__)) {
-                            switch (Candid.Decoder.decodeOne(blob__, [], null)) {
+                            switch (Candid.decodeOne(blob__, [], null)) {
                                 case (#ok(c__)) {
                                     switch ({{{dataType}}}.fromCandidValue(c__)) {
                                         case (?err) " - " # debug_show(err);

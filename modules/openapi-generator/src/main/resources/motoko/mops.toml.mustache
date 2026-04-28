@@ -11,7 +11,7 @@ files = ["src/Config.mo", "src/Apis/**/*.mo", "src/Models/**/*.mo"]
 
 [dependencies]
 core = "2.4.0"
-serde-core = "0.1.1" # ggreif/serde fork: skip_null_fields (NatLabs/serde#44) + Map<K,V> type-table cycle fix
+serde-core = "0.1.2" # ggreif/serde fork: skip_null_fields (NatLabs/serde#44) + Map<K,V> cycle fix + decodeOne / fromCandidWith re-exports
 "cbor@4.1.0" = "4.1.0"
 "itertools@0.2.2" = "0.2.2" # because for serde-core
 base = "0.16.0" # because serde-core uses json.mo submodule
