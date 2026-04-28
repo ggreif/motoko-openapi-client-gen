@@ -151,13 +151,9 @@ module {
                 case (?text) text;
                 case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to decode response body as UTF-8"{{#diagnostics}} # " (" # Int.toText(response.body.size()) # " bytes of non-UTF-8 data — server may have returned binary, gzipped, or non-UTF-8-charset content)"{{/diagnostics}});
             }) |>
-            (switch (JSON.fromText(_, null)) {
-                case (#ok(blob__)) blob__;
-                case (#err(msg)) throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to parse JSON: " # msg{{#diagnostics}} # " — server returned: " # (switch (Text.decodeUtf8(response.body)) { case (?t) t; case null "(undecodable bytes)" }){{/diagnostics}});
-            }) |>
-            (switch (Candid.decodeOne(_, [], null)) {
+            (switch (JSON.toCandid(_)) {
                 case (#ok(c__)) c__;
-                case (#err(msg)) throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to decode Candid: " # msg{{#diagnostics}} # " — server returned: " # (switch (Text.decodeUtf8(response.body)) { case (?t) t; case null "(undecodable bytes)" }){{/diagnostics}});
+                case (#err(msg)) throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to parse JSON: " # msg{{#diagnostics}} # " — server returned: " # (switch (Text.decodeUtf8(response.body)) { case (?t) t; case null "(undecodable bytes)" }){{/diagnostics}});
             }) |>
             {{#vendorExtensions.x-return-is-array}}
             (switch (_) {
@@ -215,16 +211,11 @@ module {
             // Try parsing {{code}} response as {{{dataType}}}
             if (response.status == {{code}}) {
                 let errorDetail = if (responseText != "") {
-                    switch (JSON.fromText(responseText, null)) {
-                        case (#ok(blob__)) {
-                            switch (Candid.decodeOne(blob__, [], null)) {
-                                case (#ok(c__)) {
-                                    switch ({{{dataType}}}.fromCandidValue(c__)) {
-                                        case (?err) " - " # debug_show(err);
-                                        case null " - " # responseText;
-                                    };
-                                };
-                                case (#err(_)) " - " # responseText;
+                    switch (JSON.toCandid(responseText)) {
+                        case (#ok(c__)) {
+                            switch ({{{dataType}}}.fromCandidValue(c__)) {
+                                case (?err) " - " # debug_show(err);
+                                case null " - " # responseText;
                             };
                         };
                         case (#err(_)) " - " # responseText;
