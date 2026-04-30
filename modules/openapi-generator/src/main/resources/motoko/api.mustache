@@ -174,7 +174,7 @@ module {
             {{^vendorExtensions.x-return-is-array}}
             {{#vendorExtensions.x-return-is-primitive}}
             (switch (_) {
-                {{#vendorExtensions.x-return-is-text}}case (#Text(s__)) s__;{{/vendorExtensions.x-return-is-text}}{{^vendorExtensions.x-return-is-text}}case (#Int(i__)) i__;{{/vendorExtensions.x-return-is-text}}
+                {{#vendorExtensions.x-return-is-text}}case (#Text(s__)) s__;{{/vendorExtensions.x-return-is-text}}{{#vendorExtensions.x-return-is-blob}}case (#Blob(b__)) b__;{{/vendorExtensions.x-return-is-blob}}{{^vendorExtensions.x-return-is-text}}{{^vendorExtensions.x-return-is-blob}}case (#Int(i__)) i__;{{/vendorExtensions.x-return-is-blob}}{{/vendorExtensions.x-return-is-text}}
                 case _ throw Error.reject("HTTP " # Int.toText(response.status){{#diagnostics}} # " body[" # Nat.toText(response.body.size()) # "B]=" # (switch (Text.decodeUtf8(response.body)) { case (?t) (if (t.size() > 100) Text.fromIter(Iter.take<Char>(t.chars(), 100)) # "..." else t); case null "(undecodable)" }){{/diagnostics}} # ": Unexpected primitive shape");
             })
             {{/vendorExtensions.x-return-is-primitive}}

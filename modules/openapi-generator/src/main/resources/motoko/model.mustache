@@ -193,39 +193,20 @@ module {
     };
 
     public module JSON {
-        // Convert oneOf variant to Text for URL parameters
-        public func toText(value : {{classname}}) : Text =
-            switch (value) {
-{{#vendorExtensions.oneOfVariants}}
-                case ({{#hasType}}#{{name}}(v){{/hasType}}{{^hasType}}#{{name}}{{/hasType}}) {{#hasType}}{{#isNumericType}}Int.toText(v){{/isNumericType}}{{#isEnumType}}(switch ({{dataType}}.toCandidValue(v)) { case (#Text(s)) s; case _ Runtime.unreachable() }){{/isEnumType}}{{#isObjectType}}Runtime.unreachable(){{/isObjectType}}{{/hasType}}{{^hasType}}"{{enumValue}}"{{/hasType}};
-{{/vendorExtensions.oneOfVariants}}
-            };
+        // Generic oneOf is rare on the surfaces we care about (chat / tweet
+        // bodies use discriminator-oneOf or string-flatten). The branches here
+        // can mix primitives, parametrised types, and arrays — none of which
+        // dispatch cleanly via `{{dataType}}.toCandidValue(v)` (Text isn't a
+        // module; `Map<K,V>` and `[[Int]]` aren't dottable identifiers). To
+        // keep the file type-checking (so `mops publish` can extract docs),
+        // stub all three converters with `Runtime.unreachable()`. Real
+        // implementations are a follow-up — primitive dispatch + recursive
+        // partial reuse for arrays/maps inside oneOf branches.
+        public func toText(_value : {{classname}}) : Text = Runtime.unreachable();
 
-        public func toCandidValue(value : {{classname}}) : Candid.Candid =
-            switch (value) {
-{{#vendorExtensions.oneOfVariants}}
-                case ({{#hasType}}#{{name}}(v){{/hasType}}{{^hasType}}#{{name}}{{/hasType}}) #Variant(("{{name}}", {{#hasType}}{{#isNumericType}}#Int(v){{/isNumericType}}{{#isEnumType}}{{dataType}}.toCandidValue(v){{/isEnumType}}{{#isObjectType}}{{dataType}}.toCandidValue(v){{/isObjectType}}{{/hasType}}{{^hasType}}#Null{{/hasType}}));
-{{/vendorExtensions.oneOfVariants}}
-            };
+        public func toCandidValue(_value : {{classname}}) : Candid.Candid = Runtime.unreachable();
 
-        public func fromCandidValue(candid : Candid.Candid) : ?{{classname}} =
-            switch (candid) {
-                case (#Variant(tagAndVal)) {
-                    switch (tagAndVal.0) {
-{{#vendorExtensions.oneOfVariants}}
-                        case ("{{name}}") {{#hasType}}{
-                            {{#isNumericType}}let #Int(v) = tagAndVal.1 else return null;{{#isUnsigned}}
-                            if (v < 0) return null;
-                            ?#{{name}}(Int.abs(v)){{/isUnsigned}}{{^isUnsigned}}
-                            ?#{{name}}(v){{/isUnsigned}}{{/isNumericType}}{{^isNumericType}}let ?inner = {{dataType}}.fromCandidValue(tagAndVal.1) else return null;
-                            ?#{{name}}(inner){{/isNumericType}}
-                        }{{/hasType}}{{^hasType}}?#{{name}}{{/hasType}};
-{{/vendorExtensions.oneOfVariants}}
-                        case _ null;
-                    };
-                };
-                case _ null;
-            };
+        public func fromCandidValue(_candid : Candid.Candid) : ?{{classname}} = Runtime.unreachable();
     };
 };
 {{/vendorExtensions.x-is-oneof}}

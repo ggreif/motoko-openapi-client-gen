@@ -220,8 +220,11 @@ public class MotokoClientCodegen extends DefaultCodegen implements CodegenConfig
 
     @Override
     public String toVarName(String name) {
-        // Sanitize name but keep it as snake_case (convert hyphens to underscores)
-        name = name.replace("-", "_");
+        // Sanitize: replace any non-identifier char (`-`, `/`, `.`, brackets,
+        // colons, …) with `_`. Catches OpenAI's slash-separated moderation
+        // category names (`hate/threatening` → `hate_threatening`) and any
+        // other punctuation a spec author might sneak into a property name.
+        name = name.replaceAll("[^A-Za-z0-9_]", "_");
 
         // Handle reserved words by appending underscore
         if (isReservedWord(name)) {
@@ -583,7 +586,27 @@ public class MotokoClientCodegen extends DefaultCodegen implements CodegenConfig
                     Map<String, Object> variant = new HashMap<>();
 
                     // Determine variant name and type
-                    String variantName = getOneOfVariantName(oneOfProp, refToDiscriminatorKey);
+                    String rawName = getOneOfVariantName(oneOfProp, refToDiscriminatorKey);
+                    // Ensure the result is a valid Motoko identifier. `getOneOfVariantName` can
+                    // return strings carrying `[` / `]` / `<` / `>` (e.g. nested-array oneOf
+                    // branches like `[[Int]]` whose `baseName` retains the brackets) — `toVarName`
+                    // only prefixes a `_` and leaves the brackets in, producing tags like
+                    // `#_[Int]` that fail to parse.
+                    //
+                    // If the raw name carries any bracket-like character, fall back to the
+                    // positional name `one_of_<i>` (matching how unnamed primitive branches get
+                    // `one_of_0` / `one_of_1` / … from the OpenAPI core). Otherwise sanitize
+                    // any non-identifier chars to `_` as a safety net.
+                    String variantName;
+                    if (rawName.matches(".*[\\[\\]<>(),].*")) {
+                        variantName = "one_of_" + i;
+                    } else {
+                        variantName = rawName.replaceAll("[^A-Za-z0-9_]", "_");
+                        if (variantName.isEmpty() || !variantName.matches("^[A-Za-z_].*")
+                                || variantName.matches("^_+$")) {
+                            variantName = "one_of_" + i;
+                        }
+                    }
                     String variantType = oneOfProp.dataType;
                     // For discriminator-oneOf, surface the wire literal too (Mustache uses it).
                     if (refToDiscriminatorKey != null && oneOfProp.complexType != null) {
@@ -1499,6 +1522,8 @@ public class MotokoClientCodegen extends DefaultCodegen implements CodegenConfig
                 if (op.returnType != null && op.returnContainer == null) {
                     boolean isPrimitive = isPrimitiveOrMappedType(op.returnType);
                     op.vendorExtensions.put("x-return-is-primitive", isPrimitive);
+                    op.vendorExtensions.put("x-return-is-blob", "Blob".equals(op.returnType));
+                    op.vendorExtensions.put("x-return-is-text", "Text".equals(op.returnType));
                 }
 
                 // Mark operations with map return types for special handling in template

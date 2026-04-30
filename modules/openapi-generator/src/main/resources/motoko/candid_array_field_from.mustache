@@ -9,10 +9,11 @@ switch ({{name}}_field.1) {
                                 List.add(buf__, f__);{{/isDouble}}{{^isDouble}}{{#isNumber}}let #Float(f__) = c__ else return null;
                                 List.add(buf__, f__);{{/isNumber}}{{^isNumber}}{{#vendorExtensions.x-is-unsigned}}let ?n__ = (switch (c__) { case (#Nat(k)) ?k; case (#Int(j)) (if (j < 0) null else ?Int.abs(j)); case _ null }) else return null;
                                 List.add(buf__, n__);{{/vendorExtensions.x-is-unsigned}}{{^vendorExtensions.x-is-unsigned}}{{#isInteger}}let ?i__ = (switch (c__) { case (#Int(j)) ?j; case (#Nat(k)) ?k; case _ null }) else return null;
-                                List.add(buf__, i__);{{/isInteger}}{{^isInteger}}{{#isLong}}let ?i__ = (switch (c__) { case (#Int(j)) ?j; case (#Nat(k)) ?k; case _ null }) else return null;
-                                List.add(buf__, i__);{{/isLong}}{{^isLong}}{{#isEnumRef}}let ?e__ = {{{datatypeWithEnum}}}.fromCandidValue(c__) else return null;
-                                List.add(buf__, e__);{{/isEnumRef}}{{^isEnumRef}}let ?m__ = {{{dataType}}}.fromCandidValue(c__) else return null;
-                                List.add(buf__, m__);{{/isEnumRef}}{{/isLong}}{{/isInteger}}{{/vendorExtensions.x-is-unsigned}}{{/isNumber}}{{/isDouble}}{{/isFloat}}{{/isBoolean}}{{/isString}}{{/items}}
+                                List.add(buf__, i__);{{/isInteger}}{{^isInteger}}{{#isLong}}{{^isInteger}}let ?i__ = (switch (c__) { case (#Int(j)) ?j; case (#Nat(k)) ?k; case _ null }) else return null;
+                                List.add(buf__, i__);{{/isInteger}}{{/isLong}}{{^isLong}}{{#isEnumRef}}let ?e__ = {{{datatypeWithEnum}}}.fromCandidValue(c__) else return null;
+                                List.add(buf__, e__);{{/isEnumRef}}{{^isEnumRef}}{{#complexType}}let ?m__ = {{{dataType}}}.fromCandidValue(c__) else return null;
+                                List.add(buf__, m__);{{/complexType}}{{^complexType}}let m__ : {{{dataType}}} = Runtime.unreachable();
+                                List.add(buf__, m__);{{/complexType}}{{/isEnumRef}}{{/isLong}}{{/isInteger}}{{/vendorExtensions.x-is-unsigned}}{{/isNumber}}{{/isDouble}}{{/isFloat}}{{/isBoolean}}{{/isString}}{{/items}}
                             };
                             ?List.toArray(buf__);
                         };
