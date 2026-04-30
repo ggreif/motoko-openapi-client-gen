@@ -314,6 +314,12 @@ module {
                 case _ null;
             };
     };
+
+    /// Re-export of `JSON.init` at the outer module level so callers using the
+    /// whole-module import pattern (`import T "...";`) can write `T.init {…}`
+    /// directly, mirroring the destructure-pattern (`{ type T; JSON = T }`)
+    /// shorthand `T.init {…}` that resolves through the JSON alias.
+    public let init = JSON.init;
 };
 {{/vendorExtensions.x-is-oneof}}
 {{/vendorExtensions.x-is-discriminator-oneof}}
