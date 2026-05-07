@@ -11,7 +11,7 @@ files = ["src/Config.mo", "src/Apis/**/*.mo", "src/Models/**/*.mo"]
 
 [dependencies]
 core = "2.4.0"
-serde-core = "0.1.3" # ggreif/serde fork: skip_null_fields (NatLabs/serde#44) + Map<K,V> cycle fix + decodeOne/fromCandidWith re-exports + \u-escape & surrogate-pair JSON parser (aviate-labs/json.mo#8)
+serde-core = "0.1.4" # ggreif/serde fork: skip_null_fields (NatLabs/serde#44) + Map<K,V> cycle fix + decodeOne/fromCandidWith re-exports + \u-escape & surrogate-pair JSON parser (aviate-labs/json.mo#8) + RFC 8259 §7 string escaping in JSON.fromCandid (root: aviate-labs/json.mo#9)
 "cbor@4.1.0" = "4.1.0"
 "itertools@0.2.2" = "0.2.2" # because for serde-core
 base = "0.16.0" # because serde-core uses json.mo submodule
