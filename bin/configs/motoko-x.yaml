@@ -3,7 +3,7 @@ outputDir: samples/client/x/motoko/generated
 inputSpec: samples/client/x/motoko/specs/x-openapi.json
 templateDir: modules/openapi-generator/src/main/resources/motoko
 artifactId: x-client
-artifactVersion: 0.2.4
+artifactVersion: 0.2.5
 modelNameMappings:
   # Twitter's `List` schema collides with `mo:core/List` (the codegen imports
   # `mo:core/List` for `Lst__.empty<>` / `add` / `toArray` in record decoders).
