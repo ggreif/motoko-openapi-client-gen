@@ -13,3 +13,6 @@
 [submodule "samples/client/openai/motoko/generated"]
 	path = samples/client/openai/motoko/generated
 	url = git@github.com:caffeinelabs/openai-client.git
+[submodule "samples/client/weatherapi/motoko/generated"]
+	path = samples/client/weatherapi/motoko/generated
+	url = git@github.com:caffeinelabs/weatherapi-client.git

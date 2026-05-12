@@ -1,0 +1,10 @@
+generatorName: motoko
+outputDir: samples/client/weatherapi/motoko/generated
+inputSpec: samples/client/weatherapi/motoko/specs/weatherapi.json
+templateDir: modules/openapi-generator/src/main/resources/motoko
+artifactId: weatherapi-client
+artifactVersion: 0.1.0
+additionalProperties:
+  hideGenerationTimestamp: "true"
+  useDfx: false
+  artifactRepoUrl: "https://github.com/caffeinelabs/weatherapi-client"
