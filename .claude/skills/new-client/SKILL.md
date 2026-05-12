@@ -408,6 +408,121 @@ Moderations, Files) cover the most common OpenAI use cases. The remaining
 15 APIs (Assistants, Realtime, VectorStores, etc.) and their ~1,000
 exclusive models are pruned away.
 
+## Skill markdown — shipping AI-agent usage notes alongside the client
+
+Clients can ship a `src/SKILL.md` documenting how an LLM/agent should use
+the generated module — auth setup, calling patterns, common pitfalls,
+Caffeine-flavored guidance, anything that isn't already obvious from
+the type signatures. Pattern mirrors `focusApis`: configured in the
+generator YAML, handled by `generate.sh`, invisible to the generator
+binary.
+
+### Configuration
+
+Two mutually-exclusive forms in `bin/configs/motoko-<name>.yaml`:
+
+```yaml
+# (a) Path relative to the YAML's directory; copied verbatim to src/SKILL.md.
+skillFile: skills/<name>.md
+```
+
+```yaml
+# (b) Inline YAML literal block. Indentation is stripped per YAML rules.
+skill: |
+  # Skill name
+  …markdown body…
+```
+
+Setting both is an error. Prefer **(a) `skillFile:`** for non-trivial
+content — diff-friendly, lints with normal markdown tooling, easier to
+review. Reserve **(b) inline** for tiny placeholders or quick
+experiments.
+
+### How `generate.sh` implements it
+
+After the generator binary runs, the script:
+
+1. Reads `skillFile:` (line) and `skill: |` (literal-block) from the YAML.
+2. Refuses both being set simultaneously.
+3. Whichever is set, writes the body to `<generated>/src/SKILL.md`.
+4. Patches the just-emitted `mops.toml`'s `files = [...]` to include
+   `src/SKILL.md` so `mops publish` ships it.
+
+Snippet (drop in just after the `java -jar … generate` invocation):
+
+```bash
+# --- skill / SKILL.md ---
+# Two mutually-exclusive ways to declare the skill in the generator YAML:
+#   skillFile: <path>     (relative to the YAML's directory)
+#   skill: |              (inline YAML literal block)
+#     # ... markdown body ...
+SKILL_FILE=$(grep -E '^[[:space:]]*skillFile:' "$CONFIG" | head -1 | sed 's/^[[:space:]]*skillFile:[[:space:]]*//; s/[[:space:]]*$//' || true)
+SKILL_INLINE=$(awk '
+  /^[[:space:]]*skill:[[:space:]]*\|[-+]?[[:space:]]*$/ {
+    in_block = 1; indent = ""; next
+  }
+  in_block {
+    if (indent == "") {
+      if (match($0, /^[[:space:]]+/) == 0) { in_block = 0; next }
+      indent = substr($0, 1, RLENGTH)
+    }
+    if ($0 != "" && substr($0, 1, length(indent)) != indent) {
+      in_block = 0; next
+    }
+    print substr($0, length(indent) + 1)
+  }
+' "$CONFIG")
+if [ -n "$SKILL_FILE" ] && [ -n "$SKILL_INLINE" ]; then
+  echo "skill: cannot set both 'skillFile:' and 'skill: |' — they are mutually exclusive" >&2
+  exit 1
+fi
+SKILL_OUT="$GENERATED/src/SKILL.md"
+SKILL_FROM=""
+if [ -n "$SKILL_FILE" ]; then
+  CONFIG_DIR="$(dirname "$CONFIG")"
+  SKILL_SRC="$CONFIG_DIR/$SKILL_FILE"
+  if [ ! -f "$SKILL_SRC" ]; then
+    echo "skill: $SKILL_SRC not found" >&2
+    exit 1
+  fi
+  cp "$SKILL_SRC" "$SKILL_OUT"
+  SKILL_FROM="skillFile: $SKILL_FILE"
+elif [ -n "$SKILL_INLINE" ]; then
+  printf '%s\n' "$SKILL_INLINE" > "$SKILL_OUT"
+  SKILL_FROM="inline 'skill: |' block"
+fi
+if [ -n "$SKILL_FROM" ]; then
+  # portable sed: write to .bak then drop it (macOS + Linux)
+  sed -i.bak 's|files = \["src/Config.mo",|files = ["src/Config.mo", "src/SKILL.md",|' "$GENERATED/mops.toml"
+  rm -f "$GENERATED/mops.toml.bak"
+  echo "skill: wrote src/SKILL.md from $SKILL_FROM, patched mops.toml"
+fi
+```
+
+> **`|| true` on the `grep`** is required — under `set -euo pipefail`,
+> a `grep` that finds zero matches exits 1 and kills the script before
+> the inline-skill path even runs. The fallback suppresses that.
+
+The block is dormant when neither key is set — no harm including it in
+every client's `generate.sh` ahead of need (the WeatherAPI client
+already carries it).
+
+### What goes in SKILL.md
+
+Free-form markdown. Suggested sections:
+
+- **Auth** — how to obtain credentials, how to pass them via `Config`.
+- **Common usage patterns** — typical calling sequences, e.g. "fetch
+  current weather, then forecast" or "search → fetch details".
+- **Caffeine-specific guidance** — when this client should be preferred
+  over manual HTTP calls, project conventions, etc.
+- **Caveats** — rate limits, payload-size quirks, fields that don't
+  round-trip through Candid, etc.
+
+The markdown is shipped as a first-class package file — consumers
+discover it via the same import-time tooling that surfaces other
+documentation.
+
 ## Key Reminders
 
 - **Force push**: If remote already has a README commit, `git push --force` is needed

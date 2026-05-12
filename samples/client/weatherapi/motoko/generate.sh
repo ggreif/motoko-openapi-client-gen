@@ -1,12 +1,69 @@
 #!/bin/bash
 # Regenerate Motoko client from WeatherAPI.com OpenAPI spec
 
-cd "$(dirname "$0")"
-cd ../../../..  # Go to repo root (samples/client/<name>/motoko → 4 levels up)
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
+CONFIG="$REPO_ROOT/bin/configs/motoko-weatherapi.yaml"
+GENERATED="$SCRIPT_DIR/generated"
+
+cd "$REPO_ROOT"
 
 echo "Generating Motoko client from WeatherAPI.com OpenAPI spec..."
 java -jar modules/openapi-generator-cli/target/openapi-generator-cli.jar generate \
-  -c bin/configs/motoko-weatherapi.yaml
+  -c "$CONFIG"
+
+# --- skill / SKILL.md ---
+# Two mutually-exclusive ways to declare the skill in the generator YAML:
+#   skillFile: <path>     (relative to the YAML's directory)
+#   skill: |              (inline YAML literal block)
+#     # ... markdown body ...
+# Whenever either is set, the body is written to src/SKILL.md and the just-
+# emitted mops.toml's `files = [...]` line is patched to include it so
+# `mops publish` ships the file. Dormant when neither is set.
+SKILL_FILE=$(grep -E '^[[:space:]]*skillFile:' "$CONFIG" | head -1 | sed 's/^[[:space:]]*skillFile:[[:space:]]*//; s/[[:space:]]*$//' || true)
+SKILL_INLINE=$(awk '
+  /^[[:space:]]*skill:[[:space:]]*\|[-+]?[[:space:]]*$/ {
+    in_block = 1; indent = ""; next
+  }
+  in_block {
+    if (indent == "") {
+      if (match($0, /^[[:space:]]+/) == 0) { in_block = 0; next }
+      indent = substr($0, 1, RLENGTH)
+    }
+    if ($0 != "" && substr($0, 1, length(indent)) != indent) {
+      in_block = 0; next
+    }
+    print substr($0, length(indent) + 1)
+  }
+' "$CONFIG")
+if [ -n "$SKILL_FILE" ] && [ -n "$SKILL_INLINE" ]; then
+  echo "skill: cannot set both 'skillFile:' and 'skill: |' — they are mutually exclusive" >&2
+  exit 1
+fi
+SKILL_OUT="$GENERATED/src/SKILL.md"
+SKILL_FROM=""
+if [ -n "$SKILL_FILE" ]; then
+  CONFIG_DIR="$(dirname "$CONFIG")"
+  SKILL_SRC="$CONFIG_DIR/$SKILL_FILE"
+  if [ ! -f "$SKILL_SRC" ]; then
+    echo "skill: $SKILL_SRC not found" >&2
+    exit 1
+  fi
+  cp "$SKILL_SRC" "$SKILL_OUT"
+  SKILL_FROM="skillFile: $SKILL_FILE"
+elif [ -n "$SKILL_INLINE" ]; then
+  printf '%s\n' "$SKILL_INLINE" > "$SKILL_OUT"
+  SKILL_FROM="inline 'skill: |' block"
+fi
+if [ -n "$SKILL_FROM" ]; then
+  # Inject "src/SKILL.md" right after "src/Config.mo" in the files glob.
+  # Portable sed: write to .bak then drop it (works on macOS + Linux).
+  sed -i.bak 's|files = \["src/Config.mo",|files = ["src/Config.mo", "src/SKILL.md",|' "$GENERATED/mops.toml"
+  rm -f "$GENERATED/mops.toml.bak"
+  echo "skill: wrote src/SKILL.md from $SKILL_FROM, patched mops.toml"
+fi
 
 echo "Client generation complete!"
-echo "Generated files in: samples/client/weatherapi/motoko/generated/"
+echo "Generated files in: $GENERATED/"
