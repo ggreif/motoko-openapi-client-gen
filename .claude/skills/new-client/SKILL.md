@@ -61,7 +61,7 @@ Create `samples/client/<name>/motoko/generate.sh`:
 # Regenerate Motoko client from <Name> API OpenAPI spec
 
 cd "$(dirname "$0")"
-cd ../../..  # Go to repo root
+cd ../../../..  # Go to repo root (samples/client/<name>/motoko → 4 levels up)
 
 echo "Generating Motoko client from <Name> API OpenAPI spec..."
 java -jar modules/openapi-generator-cli/target/openapi-generator-cli.jar generate \
@@ -138,7 +138,7 @@ TMPBUILD=$(mktemp -d /tmp/<name>-build-test-XXXXXX)
 GENERATED_ABS="$(pwd)/generated"
 cat > "$TMPBUILD/mops.toml" << EOF
 [toolchain]
-moc = "1.3.0"
+moc = "1.4.1"   # 1.4.0+ is needed because mo:core/Float references the Float32 primitive type
 
 [package]
 name = "<name>-build-test"
@@ -213,7 +213,13 @@ Fix any errors before proceeding.
 
 ## Step 8 — Create the GitHub repo
 
-Ask the user to create `caffeinelabs/<name>-client` (public) in the org.
+Ask the user to create `caffeinelabs/<name>-client` in the org.
+
+**Visibility constraint**: non-admin members of `caffeinelabs` can only create
+repos as **private**. The user creates it private; a `caffeinelabs` admin will
+flip it to public afterwards. Don't block on the visibility — proceed with
+the push as soon as the repo exists.
+
 Once created, set the mops homepage:
 
 ```bash
