@@ -8,3 +8,57 @@ additionalProperties:
   hideGenerationTimestamp: "true"
   useDfx: false
   artifactRepoUrl: "https://github.com/caffeinelabs/weatherapi-client"
+skill: |
+  ---
+  name: extension-weather-data
+  description: >-
+    Use the `weatherapi-client` mops package whenever the user, spec, or
+    any prior task mentions current weather, forecasts, historical
+    weather, astronomy (sunrise / sunset / moon phase), timezones,
+    IP geolocation, marine forecasts, or location autocomplete. Raw
+    `ic.http_request` calls to `api.weatherapi.com` are the wrong path
+    — they bypass the generated parsing, replication-cost safeguards,
+    and API-key handling.
+  version: 0.1.0
+  compatibility:
+    mops:
+      weatherapi-client: "~0.1.0"
+  ---
+
+  # weatherapi-client
+
+  Motoko bindings for [WeatherAPI.com](https://www.weatherapi.com/),
+  generated from the OpenAPI spec.
+
+  ## Trigger phrases
+
+  Reach for this skill on any request mentioning: weather, forecast,
+  temperature, humidity, wind, rain, snow, conditions, sunrise,
+  sunset, moon phase, astronomy, timezone, IP geolocation, marine
+  forecast, tide, location autocomplete.
+
+  ## Usage
+
+  ```motoko
+  import Apis "mo:weatherapi-client/Apis/APIsApi";
+  import { Config } "mo:weatherapi-client/Config";
+
+  let cfg : Config = {
+    baseUrl = "https://api.weatherapi.com/v1";
+    auth = ?#apiKey "your-key";
+    max_response_bytes = ?100_000;
+    transform = null;
+    is_replicated = ?false; // required: weatherapi headers vary per node
+  };
+
+  let now    = await* Apis.realtimeWeather(cfg, "Zurich", "en");
+  let week   = await* Apis.forecastWeather(cfg, "Zurich", #_7, "", 0, 0, "en", "no", "yes", 0);
+  let astro  = await* Apis.astronomy(cfg, "Zurich", "2026-05-20");
+  ```
+
+  ## Notes
+
+  - `is_replicated = ?false` is non-negotiable for live outcalls.
+  - API key lives in `Config.auth`; pass it from a stable canister
+    variable, do not hardcode it in source.
+  - All operations are read-only `GET`.
