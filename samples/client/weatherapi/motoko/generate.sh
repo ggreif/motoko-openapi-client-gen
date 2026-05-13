@@ -19,9 +19,10 @@ java -jar modules/openapi-generator-cli/target/openapi-generator-cli.jar generat
 #   skillFile: <path>     (relative to the YAML's directory)
 #   skill: |              (inline YAML literal block)
 #     # ... markdown body ...
-# Whenever either is set, the body is written to src/SKILL.md and the just-
-# emitted mops.toml's `files = [...]` line is patched to include it so
-# `mops publish` ships the file. Dormant when neither is set.
+# Whenever either is set, the body is written to SKILL.md at the package
+# root (alongside README.md / mops.toml) and the just-emitted mops.toml's
+# `files = [...]` line is patched to include it so `mops publish` ships
+# the file. Dormant when neither is set.
 SKILL_FILE=$(grep -E '^[[:space:]]*skillFile:' "$CONFIG" | head -1 | sed 's/^[[:space:]]*skillFile:[[:space:]]*//; s/[[:space:]]*$//' || true)
 SKILL_INLINE=$(awk '
   /^[[:space:]]*skill:[[:space:]]*\|[-+]?[[:space:]]*$/ {
@@ -42,7 +43,7 @@ if [ -n "$SKILL_FILE" ] && [ -n "$SKILL_INLINE" ]; then
   echo "skill: cannot set both 'skillFile:' and 'skill: |' — they are mutually exclusive" >&2
   exit 1
 fi
-SKILL_OUT="$GENERATED/src/SKILL.md"
+SKILL_OUT="$GENERATED/SKILL.md"
 SKILL_FROM=""
 if [ -n "$SKILL_FILE" ]; then
   CONFIG_DIR="$(dirname "$CONFIG")"
@@ -58,11 +59,13 @@ elif [ -n "$SKILL_INLINE" ]; then
   SKILL_FROM="inline 'skill: |' block"
 fi
 if [ -n "$SKILL_FROM" ]; then
-  # Inject "src/SKILL.md" right after "src/Config.mo" in the files glob.
+  # Inject "SKILL.md" at the front of the files glob (mops auto-includes
+  # README.md / LICENSE / mops.toml at root but not other root files —
+  # SKILL.md still has to be enumerated explicitly).
   # Portable sed: write to .bak then drop it (works on macOS + Linux).
-  sed -i.bak 's|files = \["src/Config.mo",|files = ["src/Config.mo", "src/SKILL.md",|' "$GENERATED/mops.toml"
+  sed -i.bak 's|files = \["src/Config.mo",|files = ["SKILL.md", "src/Config.mo",|' "$GENERATED/mops.toml"
   rm -f "$GENERATED/mops.toml.bak"
-  echo "skill: wrote src/SKILL.md from $SKILL_FROM, patched mops.toml"
+  echo "skill: wrote SKILL.md from $SKILL_FROM, patched mops.toml"
 fi
 
 echo "Client generation complete!"

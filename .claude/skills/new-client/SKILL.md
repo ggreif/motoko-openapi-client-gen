@@ -410,19 +410,19 @@ exclusive models are pruned away.
 
 ## Skill markdown — shipping AI-agent usage notes alongside the client
 
-Clients can ship a `src/SKILL.md` documenting how an LLM/agent should use
-the generated module — auth setup, calling patterns, common pitfalls,
-Caffeine-flavored guidance, anything that isn't already obvious from
-the type signatures. Pattern mirrors `focusApis`: configured in the
-generator YAML, handled by `generate.sh`, invisible to the generator
-binary.
+Clients can ship a top-level `SKILL.md` (alongside `README.md` /
+`mops.toml`) documenting how an LLM/agent should use the generated
+module — auth setup, calling patterns, common pitfalls, Caffeine-
+flavored guidance, anything that isn't already obvious from the type
+signatures. Pattern mirrors `focusApis`: configured in the generator
+YAML, handled by `generate.sh`, invisible to the generator binary.
 
 ### Configuration
 
 Two mutually-exclusive forms in `bin/configs/motoko-<name>.yaml`:
 
 ```yaml
-# (a) Path relative to the YAML's directory; copied verbatim to src/SKILL.md.
+# (a) Path relative to the YAML's directory; copied verbatim to SKILL.md.
 skillFile: skills/<name>.md
 ```
 
@@ -444,9 +444,12 @@ After the generator binary runs, the script:
 
 1. Reads `skillFile:` (line) and `skill: |` (literal-block) from the YAML.
 2. Refuses both being set simultaneously.
-3. Whichever is set, writes the body to `<generated>/src/SKILL.md`.
+3. Whichever is set, writes the body to `<generated>/SKILL.md` (package
+   root, next to `README.md`/`mops.toml`).
 4. Patches the just-emitted `mops.toml`'s `files = [...]` to include
-   `src/SKILL.md` so `mops publish` ships it.
+   `SKILL.md` so `mops publish` ships it. mops auto-includes
+   `README.md`/`LICENSE`/`mops.toml` at root, but anything else must
+   be enumerated explicitly.
 
 Snippet (drop in just after the `java -jar … generate` invocation):
 
@@ -476,7 +479,7 @@ if [ -n "$SKILL_FILE" ] && [ -n "$SKILL_INLINE" ]; then
   echo "skill: cannot set both 'skillFile:' and 'skill: |' — they are mutually exclusive" >&2
   exit 1
 fi
-SKILL_OUT="$GENERATED/src/SKILL.md"
+SKILL_OUT="$GENERATED/SKILL.md"
 SKILL_FROM=""
 if [ -n "$SKILL_FILE" ]; then
   CONFIG_DIR="$(dirname "$CONFIG")"
@@ -493,9 +496,9 @@ elif [ -n "$SKILL_INLINE" ]; then
 fi
 if [ -n "$SKILL_FROM" ]; then
   # portable sed: write to .bak then drop it (macOS + Linux)
-  sed -i.bak 's|files = \["src/Config.mo",|files = ["src/Config.mo", "src/SKILL.md",|' "$GENERATED/mops.toml"
+  sed -i.bak 's|files = \["src/Config.mo",|files = ["SKILL.md", "src/Config.mo",|' "$GENERATED/mops.toml"
   rm -f "$GENERATED/mops.toml.bak"
-  echo "skill: wrote src/SKILL.md from $SKILL_FROM, patched mops.toml"
+  echo "skill: wrote SKILL.md from $SKILL_FROM, patched mops.toml"
 fi
 ```
 
