@@ -71,6 +71,27 @@ Or use the per-client `generate.sh` script:
 bash samples/client/spotify/motoko/generate.sh
 ```
 
+### ⚠️ When regenerating for a version bump
+
+If this regeneration accompanies an `artifactVersion:` bump in the
+config YAML (i.e. you're shipping a new mops release), you must also
+**append a `CHANGELOG.md` entry** in the submodule before tagging /
+publishing:
+
+```markdown
+## [0.1.X](https://github.com/caffeinelabs/<name>-client/releases/tag/v0.1.X) — YYYY-MM-DD
+
+### Changed / Added / Fixed
+
+- <one-line summary>
+```
+
+`mops publish` uses `CHANGELOG.md` as the canonical release-notes
+source — if it's absent or stale relative to `mops.toml`'s `version`,
+the mops UI shows the wrong (or empty) release description. The
+`release` skill assumes this has been done by the time `gh release
+create` runs.
+
 ## Typecheck
 
 Each production client has a `typecheck.sh`:
