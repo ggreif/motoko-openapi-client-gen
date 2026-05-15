@@ -2,11 +2,14 @@
 
 import Text "mo:core/Text";
 import Int "mo:core/Int";
+import Nat "mo:core/Nat";
+import Iter "mo:core/Iter";
 import Blob "mo:core/Blob";
 import Array "mo:core/Array";
+import List "mo:core/List";
 import Error "mo:core/Error";
 import Base64 "mo:core/Base64";
-import { JSON } "mo:serde-core";
+import { JSON; Candid } "mo:serde-core";
 import { type ApiResponse; JSON = ApiResponse } "../Models/ApiResponse";
 import { type FindPetsByStatusStatusParameterInner; JSON = FindPetsByStatusStatusParameterInner } "../Models/FindPetsByStatusStatusParameterInner";
 import { type Pet; JSON = Pet } "../Models/Pet";
@@ -14,7 +17,7 @@ import { type Config } "../Config";
 
 module {
     // Management Canister interface for HTTP outcalls
-    // Based on types in https://github.com/dfinity/sdk/blob/master/src/dfx/src/util/ic.did
+    // Based on https://github.com/dfinity/interface-spec/blob/master/spec/ic.did
     type http_header = {
         name : Text;
         value : Text;
@@ -51,6 +54,7 @@ module {
 
 
     /// Add a new pet to the store
+    ///
     /// 
     public func addPet(config : Config, pet : Pet) : async* Pet {
         let {baseUrl; cycles} = config;
@@ -91,9 +95,9 @@ module {
             method = #post;
             headers;
             body = do ? {
-                let jsonValue = Pet.toJSON(pet);
-                let candidBlob = to_candid(jsonValue);
-                let #ok(jsonText) = JSON.toText(candidBlob, [], null) else throw Error.reject("Failed to serialize to JSON");
+                let candidValue : Candid.Candid = Pet.toCandidValue(pet);
+                let #ok(jsonText) = JSON.fromCandid(candidValue)
+                    else throw Error.reject("Failed to serialize body to JSON");
                 Text.encodeUtf8(jsonText)
             };
         };
@@ -108,19 +112,13 @@ module {
                 case (?text) text;
                 case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to decode response body as UTF-8");
             }) |>
-            (switch (JSON.fromText(_, null)) {
-                case (#ok(blob)) blob;
+            (switch (JSON.toCandid(_)) {
+                case (#ok(c__)) c__;
                 case (#err(msg)) throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to parse JSON: " # msg);
             }) |>
-            from_candid(_) : ?Pet.JSON |>
-            (switch (_) {
-                case (?jsonValue) {
-                    switch (Pet.fromJSON(jsonValue)) {
-                        case (?value) value;
-                        case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to convert response to Pet");
-                    }
-                };
-                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response");
+            (switch (Pet.fromCandidValue(_)) {
+                case (?value) value;
+                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to convert response to Pet");
             })
         } else {
             // Error response (4xx, 5xx): parse error models and throw
@@ -141,6 +139,7 @@ module {
     };
 
     /// Deletes a pet
+    ///
     /// 
     public func deletePet(config : Config, petId : Int, apiKey : Text) : async* () {
         let {baseUrl; cycles} = config;
@@ -191,6 +190,7 @@ module {
     };
 
     /// Finds Pets by status
+    ///
     /// Multiple status values can be provided with comma separated strings
     public func findPetsByStatus(config : Config, status : [FindPetsByStatusStatusParameterInner]) : async* [Pet] {
         let {baseUrl; cycles} = config;
@@ -244,20 +244,20 @@ module {
                 case (?text) text;
                 case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to decode response body as UTF-8");
             }) |>
-            (switch (JSON.fromText(_, null)) {
-                case (#ok(blob)) blob;
+            (switch (JSON.toCandid(_)) {
+                case (#ok(c__)) c__;
                 case (#err(msg)) throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to parse JSON: " # msg);
             }) |>
-            from_candid(_) : ?[Pet.JSON] |>
             (switch (_) {
-                case (?jsonArray) {
-                    let converted = Array.filterMap<Pet.JSON, Pet>(jsonArray, Pet.fromJSON);
-                    if (converted.size() != jsonArray.size()) {
-                        throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to convert some array elements to Pet");
+                case (#Array(xs__)) {
+                    let buf__ = List.empty<Pet>();
+                    for (c__ in xs__.values()) {
+                        let ?v__ = Pet.fromCandidValue(c__) else throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to convert array element to Pet");
+                        List.add(buf__, v__);
                     };
-                    converted
+                    List.toArray(buf__);
                 };
-                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response");
+                case _ throw Error.reject("HTTP " # Int.toText(response.status) # ": Expected JSON array");
             })
         } else {
             // Error response (4xx, 5xx): parse error models and throw
@@ -278,6 +278,7 @@ module {
     };
 
     /// Finds Pets by tags
+    ///
     /// Multiple tags can be provided with comma separated strings. Use tag1, tag2, tag3 for testing.
     public func findPetsByTags(config : Config, tags : [Text]) : async* [Pet] {
         let {baseUrl; cycles} = config;
@@ -331,20 +332,20 @@ module {
                 case (?text) text;
                 case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to decode response body as UTF-8");
             }) |>
-            (switch (JSON.fromText(_, null)) {
-                case (#ok(blob)) blob;
+            (switch (JSON.toCandid(_)) {
+                case (#ok(c__)) c__;
                 case (#err(msg)) throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to parse JSON: " # msg);
             }) |>
-            from_candid(_) : ?[Pet.JSON] |>
             (switch (_) {
-                case (?jsonArray) {
-                    let converted = Array.filterMap<Pet.JSON, Pet>(jsonArray, Pet.fromJSON);
-                    if (converted.size() != jsonArray.size()) {
-                        throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to convert some array elements to Pet");
+                case (#Array(xs__)) {
+                    let buf__ = List.empty<Pet>();
+                    for (c__ in xs__.values()) {
+                        let ?v__ = Pet.fromCandidValue(c__) else throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to convert array element to Pet");
+                        List.add(buf__, v__);
                     };
-                    converted
+                    List.toArray(buf__);
                 };
-                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response");
+                case _ throw Error.reject("HTTP " # Int.toText(response.status) # ": Expected JSON array");
             })
         } else {
             // Error response (4xx, 5xx): parse error models and throw
@@ -365,6 +366,7 @@ module {
     };
 
     /// Find pet by ID
+    ///
     /// Returns a single pet
     public func getPetById(config : Config, petId : Int) : async* Pet {
         let {baseUrl; cycles} = config;
@@ -418,19 +420,13 @@ module {
                 case (?text) text;
                 case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to decode response body as UTF-8");
             }) |>
-            (switch (JSON.fromText(_, null)) {
-                case (#ok(blob)) blob;
+            (switch (JSON.toCandid(_)) {
+                case (#ok(c__)) c__;
                 case (#err(msg)) throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to parse JSON: " # msg);
             }) |>
-            from_candid(_) : ?Pet.JSON |>
-            (switch (_) {
-                case (?jsonValue) {
-                    switch (Pet.fromJSON(jsonValue)) {
-                        case (?value) value;
-                        case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to convert response to Pet");
-                    }
-                };
-                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response");
+            (switch (Pet.fromCandidValue(_)) {
+                case (?value) value;
+                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to convert response to Pet");
             })
         } else {
             // Error response (4xx, 5xx): parse error models and throw
@@ -455,6 +451,7 @@ module {
     };
 
     /// Update an existing pet
+    ///
     /// 
     public func updatePet(config : Config, pet : Pet) : async* Pet {
         let {baseUrl; cycles} = config;
@@ -495,9 +492,9 @@ module {
             method = #put;
             headers;
             body = do ? {
-                let jsonValue = Pet.toJSON(pet);
-                let candidBlob = to_candid(jsonValue);
-                let #ok(jsonText) = JSON.toText(candidBlob, [], null) else throw Error.reject("Failed to serialize to JSON");
+                let candidValue : Candid.Candid = Pet.toCandidValue(pet);
+                let #ok(jsonText) = JSON.fromCandid(candidValue)
+                    else throw Error.reject("Failed to serialize body to JSON");
                 Text.encodeUtf8(jsonText)
             };
         };
@@ -512,19 +509,13 @@ module {
                 case (?text) text;
                 case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to decode response body as UTF-8");
             }) |>
-            (switch (JSON.fromText(_, null)) {
-                case (#ok(blob)) blob;
+            (switch (JSON.toCandid(_)) {
+                case (#ok(c__)) c__;
                 case (#err(msg)) throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to parse JSON: " # msg);
             }) |>
-            from_candid(_) : ?Pet.JSON |>
-            (switch (_) {
-                case (?jsonValue) {
-                    switch (Pet.fromJSON(jsonValue)) {
-                        case (?value) value;
-                        case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to convert response to Pet");
-                    }
-                };
-                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response");
+            (switch (Pet.fromCandidValue(_)) {
+                case (?value) value;
+                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to convert response to Pet");
             })
         } else {
             // Error response (4xx, 5xx): parse error models and throw
@@ -553,6 +544,7 @@ module {
     };
 
     /// Updates a pet in the store with form data
+    ///
     /// 
     public func updatePetWithForm(config : Config, petId : Int, name : Text, status : Text) : async* () {
         let {baseUrl; cycles} = config;
@@ -602,6 +594,7 @@ module {
     };
 
     /// uploads an image
+    ///
     /// 
     public func uploadFile(config : Config, petId : Int, additionalMetadata : Text, file : Blob) : async* ApiResponse {
         let {baseUrl; cycles} = config;
@@ -655,19 +648,13 @@ module {
                 case (?text) text;
                 case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to decode response body as UTF-8");
             }) |>
-            (switch (JSON.fromText(_, null)) {
-                case (#ok(blob)) blob;
+            (switch (JSON.toCandid(_)) {
+                case (#ok(c__)) c__;
                 case (#err(msg)) throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to parse JSON: " # msg);
             }) |>
-            from_candid(_) : ?ApiResponse.JSON |>
-            (switch (_) {
-                case (?jsonValue) {
-                    switch (ApiResponse.fromJSON(jsonValue)) {
-                        case (?value) value;
-                        case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to convert response to ApiResponse");
-                    }
-                };
-                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response");
+            (switch (ApiResponse.fromCandidValue(_)) {
+                case (?value) value;
+                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to convert response to ApiResponse");
             })
         } else {
             // Error response (4xx, 5xx): parse error models and throw
@@ -697,48 +684,56 @@ module {
 
     public module class PetApi(config : Config) {
         /// Add a new pet to the store
+        ///
         /// 
         public func addPet(pet : Pet) : async Pet {
             await* operations__.addPet(config, pet)
         };
 
         /// Deletes a pet
+        ///
         /// 
         public func deletePet(petId : Int, apiKey : Text) : async () {
             await* operations__.deletePet(config, petId, apiKey)
         };
 
         /// Finds Pets by status
+        ///
         /// Multiple status values can be provided with comma separated strings
         public func findPetsByStatus(status : [FindPetsByStatusStatusParameterInner]) : async [Pet] {
             await* operations__.findPetsByStatus(config, status)
         };
 
         /// Finds Pets by tags
+        ///
         /// Multiple tags can be provided with comma separated strings. Use tag1, tag2, tag3 for testing.
         public func findPetsByTags(tags : [Text]) : async [Pet] {
             await* operations__.findPetsByTags(config, tags)
         };
 
         /// Find pet by ID
+        ///
         /// Returns a single pet
         public func getPetById(petId : Int) : async Pet {
             await* operations__.getPetById(config, petId)
         };
 
         /// Update an existing pet
+        ///
         /// 
         public func updatePet(pet : Pet) : async Pet {
             await* operations__.updatePet(config, pet)
         };
 
         /// Updates a pet in the store with form data
+        ///
         /// 
         public func updatePetWithForm(petId : Int, name : Text, status : Text) : async () {
             await* operations__.updatePetWithForm(config, petId, name, status)
         };
 
         /// uploads an image
+        ///
         /// 
         public func uploadFile(petId : Int, additionalMetadata : Text, file : Blob) : async ApiResponse {
             await* operations__.uploadFile(config, petId, additionalMetadata, file)

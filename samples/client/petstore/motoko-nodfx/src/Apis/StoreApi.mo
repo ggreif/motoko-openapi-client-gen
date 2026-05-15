@@ -2,18 +2,21 @@
 
 import Text "mo:core/Text";
 import Int "mo:core/Int";
+import Nat "mo:core/Nat";
+import Iter "mo:core/Iter";
 import Blob "mo:core/Blob";
 import Array "mo:core/Array";
+import List "mo:core/List";
 import Error "mo:core/Error";
 import Base64 "mo:core/Base64";
-import { JSON } "mo:serde-core";
+import { JSON; Candid } "mo:serde-core";
 import { type Order; JSON = Order } "../Models/Order";
 import { type Map; fromIter } "mo:core/pure/Map";
 import { type Config } "../Config";
 
 module {
     // Management Canister interface for HTTP outcalls
-    // Based on types in https://github.com/dfinity/sdk/blob/master/src/dfx/src/util/ic.did
+    // Based on https://github.com/dfinity/interface-spec/blob/master/spec/ic.did
     type http_header = {
         name : Text;
         value : Text;
@@ -50,6 +53,7 @@ module {
 
 
     /// Delete purchase order by ID
+    ///
     /// For valid response try integer IDs with value < 1000. Anything above 1000 or nonintegers will generate API errors
     public func deleteOrder(config : Config, orderId : Text) : async* () {
         let {baseUrl; cycles} = config;
@@ -99,6 +103,7 @@ module {
     };
 
     /// Returns pet inventories by status
+    ///
     /// Returns a map of status codes to quantities
     public func getInventory(config : Config) : async* Map<Text, Int> {
         let {baseUrl; cycles} = config;
@@ -151,14 +156,20 @@ module {
                 case (?text) text;
                 case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to decode response body as UTF-8");
             }) |>
-            (switch (JSON.fromText(_, null)) {
-                case (#ok(blob)) blob;
+            (switch (JSON.toCandid(_)) {
+                case (#ok(c__)) c__;
                 case (#err(msg)) throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to parse JSON: " # msg);
             }) |>
-            from_candid(_) : ?[(Text, Int)] |>
             (switch (_) {
-                case (?pairs) fromIter<Text, Int>(pairs.values(), Text.compare);
-                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response");
+                case (#Record(pairs__)) {
+                    let buf__ = List.empty<(Text, Int)>();
+                    for ((k__, c__) in pairs__.values()) {
+                        let ?v__ = (switch (c__) { case (#Int(j)) ?j; case (#Nat(k)) ?k; case _ null }) else throw Error.reject("HTTP " # Int.toText(response.status) # ": map value shape mismatch for Int");
+                        List.add(buf__, (k__, v__));
+                    };
+                    fromIter<Text, Int>(List.toArray(buf__).values(), Text.compare)
+                };
+                case _ throw Error.reject("HTTP " # Int.toText(response.status) # ": Expected JSON object for Map");
             })
         } else {
             // Error response (4xx, 5xx): parse error models and throw
@@ -175,6 +186,7 @@ module {
     };
 
     /// Find purchase order by ID
+    ///
     /// For valid response try integer IDs with value <= 5 or > 10. Other values will generate exceptions
     public func getOrderById(config : Config, orderId : Nat) : async* Order {
         let {baseUrl; cycles} = config;
@@ -228,19 +240,13 @@ module {
                 case (?text) text;
                 case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to decode response body as UTF-8");
             }) |>
-            (switch (JSON.fromText(_, null)) {
-                case (#ok(blob)) blob;
+            (switch (JSON.toCandid(_)) {
+                case (#ok(c__)) c__;
                 case (#err(msg)) throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to parse JSON: " # msg);
             }) |>
-            from_candid(_) : ?Order.JSON |>
-            (switch (_) {
-                case (?jsonValue) {
-                    switch (Order.fromJSON(jsonValue)) {
-                        case (?value) value;
-                        case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to convert response to Order");
-                    }
-                };
-                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response");
+            (switch (Order.fromCandidValue(_)) {
+                case (?value) value;
+                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to convert response to Order");
             })
         } else {
             // Error response (4xx, 5xx): parse error models and throw
@@ -265,6 +271,7 @@ module {
     };
 
     /// Place an order for a pet
+    ///
     /// 
     public func placeOrder(config : Config, order : Order) : async* Order {
         let {baseUrl; cycles} = config;
@@ -305,9 +312,9 @@ module {
             method = #post;
             headers;
             body = do ? {
-                let jsonValue = Order.toJSON(order);
-                let candidBlob = to_candid(jsonValue);
-                let #ok(jsonText) = JSON.toText(candidBlob, [], null) else throw Error.reject("Failed to serialize to JSON");
+                let candidValue : Candid.Candid = Order.toCandidValue(order);
+                let #ok(jsonText) = JSON.fromCandid(candidValue)
+                    else throw Error.reject("Failed to serialize body to JSON");
                 Text.encodeUtf8(jsonText)
             };
         };
@@ -322,19 +329,13 @@ module {
                 case (?text) text;
                 case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to decode response body as UTF-8");
             }) |>
-            (switch (JSON.fromText(_, null)) {
-                case (#ok(blob)) blob;
+            (switch (JSON.toCandid(_)) {
+                case (#ok(c__)) c__;
                 case (#err(msg)) throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to parse JSON: " # msg);
             }) |>
-            from_candid(_) : ?Order.JSON |>
-            (switch (_) {
-                case (?jsonValue) {
-                    switch (Order.fromJSON(jsonValue)) {
-                        case (?value) value;
-                        case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to convert response to Order");
-                    }
-                };
-                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response");
+            (switch (Order.fromCandidValue(_)) {
+                case (?value) value;
+                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to convert response to Order");
             })
         } else {
             // Error response (4xx, 5xx): parse error models and throw
@@ -364,24 +365,28 @@ module {
 
     public module class StoreApi(config : Config) {
         /// Delete purchase order by ID
+        ///
         /// For valid response try integer IDs with value < 1000. Anything above 1000 or nonintegers will generate API errors
         public func deleteOrder(orderId : Text) : async () {
             await* operations__.deleteOrder(config, orderId)
         };
 
         /// Returns pet inventories by status
+        ///
         /// Returns a map of status codes to quantities
         public func getInventory() : async Map<Text, Int> {
             await* operations__.getInventory(config)
         };
 
         /// Find purchase order by ID
+        ///
         /// For valid response try integer IDs with value <= 5 or > 10. Other values will generate exceptions
         public func getOrderById(orderId : Nat) : async Order {
             await* operations__.getOrderById(config, orderId)
         };
 
         /// Place an order for a pet
+        ///
         /// 
         public func placeOrder(order : Order) : async Order {
             await* operations__.placeOrder(config, order)

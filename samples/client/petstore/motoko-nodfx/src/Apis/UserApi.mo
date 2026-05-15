@@ -2,17 +2,20 @@
 
 import Text "mo:core/Text";
 import Int "mo:core/Int";
+import Nat "mo:core/Nat";
+import Iter "mo:core/Iter";
 import Blob "mo:core/Blob";
 import Array "mo:core/Array";
+import List "mo:core/List";
 import Error "mo:core/Error";
 import Base64 "mo:core/Base64";
-import { JSON } "mo:serde-core";
+import { JSON; Candid } "mo:serde-core";
 import { type User; JSON = User } "../Models/User";
 import { type Config } "../Config";
 
 module {
     // Management Canister interface for HTTP outcalls
-    // Based on types in https://github.com/dfinity/sdk/blob/master/src/dfx/src/util/ic.did
+    // Based on https://github.com/dfinity/interface-spec/blob/master/spec/ic.did
     type http_header = {
         name : Text;
         value : Text;
@@ -49,6 +52,7 @@ module {
 
 
     /// Create user
+    ///
     /// This can only be done by the logged in user.
     public func createUser(config : Config, user : User) : async* () {
         let {baseUrl; cycles} = config;
@@ -89,9 +93,9 @@ module {
             method = #post;
             headers;
             body = do ? {
-                let jsonValue = User.toJSON(user);
-                let candidBlob = to_candid(jsonValue);
-                let #ok(jsonText) = JSON.toText(candidBlob, [], null) else throw Error.reject("Failed to serialize to JSON");
+                let candidValue : Candid.Candid = User.toCandidValue(user);
+                let #ok(jsonText) = JSON.fromCandid(candidValue)
+                    else throw Error.reject("Failed to serialize body to JSON");
                 Text.encodeUtf8(jsonText)
             };
         };
@@ -102,6 +106,7 @@ module {
     };
 
     /// Creates list of users with given input array
+    ///
     /// 
     public func createUsersWithArrayInput(config : Config, user : [User]) : async* () {
         let {baseUrl; cycles} = config;
@@ -142,9 +147,9 @@ module {
             method = #post;
             headers;
             body = do ? {
-                let jsonValue = Array.map<User, User.JSON>(user, User.toJSON);
-                let candidBlob = to_candid(jsonValue);
-                let #ok(jsonText) = JSON.toText(candidBlob, [], null) else throw Error.reject("Failed to serialize to JSON");
+                let candidValue : Candid.Candid = #Array(Array.map<User, Candid.Candid>(user, User.toCandidValue));
+                let #ok(jsonText) = JSON.fromCandid(candidValue)
+                    else throw Error.reject("Failed to serialize body to JSON");
                 Text.encodeUtf8(jsonText)
             };
         };
@@ -155,6 +160,7 @@ module {
     };
 
     /// Creates list of users with given input array
+    ///
     /// 
     public func createUsersWithListInput(config : Config, user : [User]) : async* () {
         let {baseUrl; cycles} = config;
@@ -195,9 +201,9 @@ module {
             method = #post;
             headers;
             body = do ? {
-                let jsonValue = Array.map<User, User.JSON>(user, User.toJSON);
-                let candidBlob = to_candid(jsonValue);
-                let #ok(jsonText) = JSON.toText(candidBlob, [], null) else throw Error.reject("Failed to serialize to JSON");
+                let candidValue : Candid.Candid = #Array(Array.map<User, Candid.Candid>(user, User.toCandidValue));
+                let #ok(jsonText) = JSON.fromCandid(candidValue)
+                    else throw Error.reject("Failed to serialize body to JSON");
                 Text.encodeUtf8(jsonText)
             };
         };
@@ -208,6 +214,7 @@ module {
     };
 
     /// Delete user
+    ///
     /// This can only be done by the logged in user.
     public func deleteUser(config : Config, username : Text) : async* () {
         let {baseUrl; cycles} = config;
@@ -257,6 +264,7 @@ module {
     };
 
     /// Get user by user name
+    ///
     /// 
     public func getUserByName(config : Config, username : Text) : async* User {
         let {baseUrl; cycles} = config;
@@ -310,19 +318,13 @@ module {
                 case (?text) text;
                 case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to decode response body as UTF-8");
             }) |>
-            (switch (JSON.fromText(_, null)) {
-                case (#ok(blob)) blob;
+            (switch (JSON.toCandid(_)) {
+                case (#ok(c__)) c__;
                 case (#err(msg)) throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to parse JSON: " # msg);
             }) |>
-            from_candid(_) : ?User.JSON |>
-            (switch (_) {
-                case (?jsonValue) {
-                    switch (User.fromJSON(jsonValue)) {
-                        case (?value) value;
-                        case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to convert response to User");
-                    }
-                };
-                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response");
+            (switch (User.fromCandidValue(_)) {
+                case (?value) value;
+                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to convert response to User");
             })
         } else {
             // Error response (4xx, 5xx): parse error models and throw
@@ -347,6 +349,7 @@ module {
     };
 
     /// Logs user into the system
+    ///
     /// 
     public func loginUser(config : Config, username : Text, password : Text) : async* Text {
         let {baseUrl; cycles} = config;
@@ -400,14 +403,13 @@ module {
                 case (?text) text;
                 case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to decode response body as UTF-8");
             }) |>
-            (switch (JSON.fromText(_, null)) {
-                case (#ok(blob)) blob;
+            (switch (JSON.toCandid(_)) {
+                case (#ok(c__)) c__;
                 case (#err(msg)) throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to parse JSON: " # msg);
             }) |>
-            from_candid(_) : ?Text |>
             (switch (_) {
-                case (?result) result;
-                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response");
+                case (#Text(s__)) s__;
+                case _ throw Error.reject("HTTP " # Int.toText(response.status) # ": Unexpected primitive shape");
             })
         } else {
             // Error response (4xx, 5xx): parse error models and throw
@@ -428,6 +430,7 @@ module {
     };
 
     /// Logs out current logged in user session
+    ///
     /// 
     public func logoutUser(config : Config) : async* () {
         let {baseUrl; cycles} = config;
@@ -476,6 +479,7 @@ module {
     };
 
     /// Updated user
+    ///
     /// This can only be done by the logged in user.
     public func updateUser(config : Config, username : Text, user : User) : async* () {
         let {baseUrl; cycles} = config;
@@ -517,9 +521,9 @@ module {
             method = #put;
             headers;
             body = do ? {
-                let jsonValue = User.toJSON(user);
-                let candidBlob = to_candid(jsonValue);
-                let #ok(jsonText) = JSON.toText(candidBlob, [], null) else throw Error.reject("Failed to serialize to JSON");
+                let candidValue : Candid.Candid = User.toCandidValue(user);
+                let #ok(jsonText) = JSON.fromCandid(candidValue)
+                    else throw Error.reject("Failed to serialize body to JSON");
                 Text.encodeUtf8(jsonText)
             };
         };
@@ -543,48 +547,56 @@ module {
 
     public module class UserApi(config : Config) {
         /// Create user
+        ///
         /// This can only be done by the logged in user.
         public func createUser(user : User) : async () {
             await* operations__.createUser(config, user)
         };
 
         /// Creates list of users with given input array
+        ///
         /// 
         public func createUsersWithArrayInput(user : [User]) : async () {
             await* operations__.createUsersWithArrayInput(config, user)
         };
 
         /// Creates list of users with given input array
+        ///
         /// 
         public func createUsersWithListInput(user : [User]) : async () {
             await* operations__.createUsersWithListInput(config, user)
         };
 
         /// Delete user
+        ///
         /// This can only be done by the logged in user.
         public func deleteUser(username : Text) : async () {
             await* operations__.deleteUser(config, username)
         };
 
         /// Get user by user name
+        ///
         /// 
         public func getUserByName(username : Text) : async User {
             await* operations__.getUserByName(config, username)
         };
 
         /// Logs user into the system
+        ///
         /// 
         public func loginUser(username : Text, password : Text) : async Text {
             await* operations__.loginUser(config, username, password)
         };
 
         /// Logs out current logged in user session
+        ///
         /// 
         public func logoutUser() : async () {
             await* operations__.logoutUser(config)
         };
 
         /// Updated user
+        ///
         /// This can only be done by the logged in user.
         public func updateUser(username : Text, user : User) : async () {
             await* operations__.updateUser(config, username, user)
