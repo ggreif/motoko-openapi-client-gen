@@ -42,7 +42,7 @@ TMPBUILD=$(mktemp -d /tmp/twilio-build-test-XXXXXX)
 GENERATED_ABS="$(pwd)/generated"
 cat > "$TMPBUILD/mops.toml" << EOF
 [toolchain]
-moc = "1.3.0"
+moc = "1.4.1"   # 1.4.0+ is needed because mo:core/Float references the Float32 primitive type
 
 [package]
 name = "twilio-build-test"

@@ -3,7 +3,7 @@ outputDir: samples/client/twilio/motoko/generated
 inputSpec: samples/client/twilio/motoko/specs/twilio_messaging.json
 templateDir: modules/openapi-generator/src/main/resources/motoko
 artifactId: twilio-client
-artifactVersion: 0.1.0
+artifactVersion: 0.1.1
 additionalProperties:
   hideGenerationTimestamp: "true"
   useDfx: false
@@ -59,3 +59,198 @@ mergeCommand: >-
   spec-merge
   -c samples/client/twilio/motoko/specs/merge-config.json
   -o samples/client/twilio/motoko/specs/twilio_messaging.json
+skill: |
+  ---
+  name: extension-twilio-messaging
+  description: >-
+    Use the `twilio-client` mops package for any request involving
+    Twilio messaging — sending SMS / MMS, configuring a Messaging
+    Service, A2P 10DLC brand registration / campaigns, toll-free
+    verification, alpha / channel senders, short codes, link
+    shortening, domain certs, owning / browsing phone numbers, or
+    the Twilio deactivation list.  One package covers both halves
+    of Twilio's messaging stack — configuration (Messaging API v1)
+    and delivery (API v2010 Messages) — under one `Config`.  Raw
+    `ic.http_request` calls to `messaging.twilio.com` or
+    `api.twilio.com` are the wrong path: they bypass the generated
+    typing, per-operation host routing, and Basic-Auth header
+    construction.
+  version: 0.1.1
+  compatibility:
+    mops:
+      twilio-client: "~0.1.0"
+  ---
+
+  # twilio-client (Twilio Messaging end-to-end)
+
+  Motoko bindings for [Twilio Messaging](https://www.twilio.com/docs/messaging),
+  generated from Twilio's two upstream OpenAPI specs (Messaging V1 +
+  API v2010) merged into one client.  Two concerns are kept distinct
+  but both handled here:
+
+  - **Configuration** — Messaging Services, A2P 10DLC brand /
+    campaign / number-assignment, toll-free verification, sender-pool
+    settings, link shortening, domain certs.  All on the v1 surface
+    (`MessagingV1*Api`), hosted at `messaging.twilio.com`.
+  - **Delivery** — `createMessage` / `fetchMessage` / `listMessage`,
+    MMS media, user-defined message events, owning + buying numbers.
+    On the v2010 surface (`Api20100401*Api`), hosted at
+    `api.twilio.com`.
+
+  The two hosts are routed per operation at codegen time — callers
+  see one `Config` and one credential pair, not two.
+
+  ## Trigger phrases
+
+  Twilio, SMS, MMS, text message, send a text, messaging service,
+  A2P 10DLC, toll-free verification, brand registration, brand
+  vetting, alpha sender, channel sender, short code, US App to
+  Person, US A2P usecase, link shortening, messaging domain cert,
+  phone number purchase, incoming phone number, available phone
+  numbers, Twilio deactivation list.
+
+  ## One auth, two hosts
+
+  Both halves of the client use the **same** HTTP Basic credential
+  pair — Account SID + Auth Token in dev, or an API-Key SID +
+  Secret in production (API Keys are revocable + scoped; preferred
+  for production canisters).  Set it once via `Config.auth`; the
+  client routes each operation to the right host on its own.
+
+  ```motoko
+  import { defaultConfig } "mo:twilio-client/Config";
+
+  let cfg = {
+    defaultConfig with
+    auth = ?#basicAuth { user = accountSid; password = authToken };
+  };
+  ```
+
+  `Config.baseUrl` is **unused** in this client — every operation
+  carries a hardcoded host (`messaging.twilio.com` for v1 config,
+  `api.twilio.com` for v2010 delivery).  Don't set it.  Stable
+  canister variables for `accountSid` / `authToken`, not source.
+
+  ## Sending an SMS
+
+  ```motoko
+  import MessageApi "mo:twilio-client/Apis/Api20100401MessageApi";
+
+  // Send to one recipient from one Twilio number.
+  let msg = await* MessageApi.createMessage(
+    cfg,
+    accountSid,             // accountSid
+    "+15558675309",         // to
+    "",                     // statusCallback
+    "",                     // applicationSid
+    0.0,                    // maxPrice (0 = no cap)
+    false,                  // provideFeedback
+    0,                      // attempt
+    0,                      // validityPeriod (seconds; 0 = default)
+    false,                  // forceDelivery
+    #retain,                // contentRetention
+    #retain,                // addressRetention
+    false,                  // smartEncoded
+    [],                     // persistentAction
+    #free,                  // trafficType
+    false,                  // shortenUrls
+    #fixed,                 // scheduleType
+    "",                     // sendAt (only for scheduled)
+    false,                  // sendAsMms
+    "",                     // contentVariables
+    #enable,                // riskCheck
+    "+15551234567",         // from (a Twilio number you own)
+    "",                     // fallbackFrom
+    "",                     // messagingServiceSid (use EITHER from OR this)
+    "Hello, world!",        // body
+    [],                     // mediaUrl (set for MMS)
+    "",                     // contentSid (Content API templates)
+  );
+  // msg.sid, msg.status, msg.errorCode, ...
+  ```
+
+  For MMS: pass `mediaUrl = ["https://example.com/image.jpg"]` and
+  `sendAsMms = true`.
+
+  To send via a configured Messaging Service (recommended for any
+  US-bound production traffic — see A2P below), leave `from = ""`
+  and set `messagingServiceSid` instead.
+
+  ## Production sender setup (US A2P 10DLC)
+
+  Before any US long-code can send to US destinations, **three
+  resources must exist in this order**.  Without all three, US
+  carriers reject the message:
+
+  1. **Brand registration**
+     `MessagingV1BrandRegistrationApi.createBrandRegistrations` —
+     references Trust Hub `customerProfileBundleSid` +
+     `a2PProfileBundleSid` (created out-of-band).  Pass `mock =
+     true` during dev (skips the registration fee).  Status starts
+     `PENDING`, settles to `APPROVED` or `FAILED` over hours-to-days;
+     fails if business info is incomplete, inconsistently
+     formatted, or doesn't match registry data.
+  2. **A2P campaign**
+     `MessagingV1UsAppToPersonApi.createUsAppToPerson` — references
+     the messaging service AND the brand.  Most onboarding failures
+     land here.  T-Mobile rejects campaigns whose `messageFlow`
+     doesn't describe opt-in or whose `messageSamples` don't match
+     the declared `usAppToPersonUsecase`.
+  3. **Phone-number-to-service assignment**
+     `MessagingV1PhoneNumberApi.createPhoneNumber(cfg, serviceSid,
+     phoneNumberSid)` — a number can live in exactly one messaging
+     service at a time; reassignment needs `deletePhoneNumber`
+     first.
+
+  **2026-06-30 deadline**: campaign registrations without working
+  `privacyPolicyUrl` *and* `termsAndConditionsUrl` start hard-400ing
+  on that date.  Both are positional args on `createUsAppToPerson`;
+  passing `""` 400s.  URLs must resolve to public HTTPS pages —
+  Twilio fetches them during registration.  Toll-free numbers use
+  a separate flow (`MessagingV1TollfreeVerificationApi`), not A2P.
+
+  ## Number management
+
+  - `Api20100401IncomingPhoneNumberApi` — list / fetch / update /
+    release numbers you own (delete = release back to Twilio).
+  - `Api20100401IncomingPhoneNumberLocal / Mobile / TollFreeApi` —
+    type-specific operations (e.g. listing only TollFree numbers).
+  - `Api20100401AvailablePhoneNumberCountryApi` — browse numbers
+    available for purchase by country.
+  - `Api20100401DependentPhoneNumberApi` — numbers tied to a
+    specific street address (E911 compliance).
+
+  ## Errors and replication
+
+  - Methods return the decoded response record on 2xx and
+    `throw Error.reject("HTTP <status>: …")` on 4xx / 5xx.  Wrap in
+    `try { … } catch (e) { Error.message(e) }` to inspect Twilio's
+    error body (`code`, `message`, `more_info`, `status`).
+    Common codes: 21408 region not permissioned, 21703 sender-pool
+    exhausted, 21704 service has no numbers, 21714 pool size
+    capped.
+  - Writes (`create*` / `update*` / `delete*`) hit non-idempotent
+    Twilio endpoints — leave `is_replicated` at its default (`null`,
+    replicated) so IC consensus dedups retries.  Reads (`list*` /
+    `fetch*`) can take `is_replicated = ?false` for cheaper outcalls
+    when a single-node view is fine.
+  - Paginated lists carry `meta.next_page_url` /
+    `meta.previous_page_url`; `pageSize` caps at 1000, default 50.
+
+  ## Field gotchas
+
+  - `usecase` (on `createService`) is `Text`, not a variant.  Valid
+    values: `notifications`, `marketing`, `verification`,
+    `discussion`, `poll`, `undeclared`.  Anything else 400s.
+  - `usAppToPersonUsecase` is a *different* enum, brand-tier
+    dependent — query
+    `UsAppToPersonUsecaseApi.fetchUsAppToPersonUsecase` for the
+    list available to a given brand.
+  - HTTP method variants are lowercase: `#get`, `#post`, `#put`,
+    `#delete`.
+  - `xTwilioApiVersion` parameter (on `*UsAppToPerson` methods) —
+    pass `""` unless Twilio support specifically asks.
+  - Per-sender throughput: long-code 1 MPS, short-code 100 MPS,
+    international long-code 10 MPS.  Per-number MPS cannot be raised;
+    scale by adding numbers to the service's sender pool.
+  - `stickySender` / `areaCodeGeomatch` are US + Canada only.
