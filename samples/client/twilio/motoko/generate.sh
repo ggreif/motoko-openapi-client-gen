@@ -56,6 +56,118 @@ java -jar modules/openapi-generator-cli/target/openapi-generator-cli.jar generat
   --skip-validate-spec \
   -c "$CONFIG"
 
+# --- focusApis pruning ---
+# Parse the focusApis: list from the YAML (under additionalProperties so
+# README.mustache can also see it).  If absent, keep the full surface.
+# Tag names match the *Api.mo filename prefix exactly.
+FOCUS_APIS=()
+IN_FOCUS=false
+while IFS= read -r line; do
+  if [[ "$line" =~ ^[[:space:]]*focusApis: ]]; then
+    IN_FOCUS=true
+    continue
+  fi
+  if $IN_FOCUS; then
+    # Skip comment / blank lines inside the focusApis section so
+    # inline annotations don't terminate the parse early.
+    if [[ "$line" =~ ^[[:space:]]*# ]] || [[ -z "${line//[[:space:]]/}" ]]; then
+      continue
+    fi
+    if [[ "$line" =~ ^[[:space:]]+- ]]; then
+      api=$(echo "$line" | sed 's/^[[:space:]]*- *//' | sed 's/[[:space:]]*#.*$//' | sed 's/[[:space:]]*$//')
+      [ -n "$api" ] && FOCUS_APIS+=("$api")
+    else
+      break
+    fi
+  fi
+done < "$CONFIG"
+
+if [ ${#FOCUS_APIS[@]} -gt 0 ]; then
+  echo ""
+  echo "focusApis pruning: keeping ${#FOCUS_APIS[@]} APIs"
+
+  # 1. Delete *Api.mo files whose tag isn't listed
+  APIS_DIR="$GENERATED/src/Apis"
+  KEPT_APIS=()
+  REMOVED_APIS=0
+  for api_file in "$APIS_DIR"/*.mo; do
+    [ -f "$api_file" ] || continue
+    tag=$(basename "$api_file" .mo)
+    tag=${tag%Api}
+    found=false
+    for focus in "${FOCUS_APIS[@]}"; do
+      if [ "$focus" = "$tag" ]; then
+        found=true
+        break
+      fi
+    done
+    if $found; then
+      KEPT_APIS+=("$api_file")
+    else
+      rm "$api_file"
+      ((REMOVED_APIS++)) || true
+    fi
+  done
+  echo "  Removed $REMOVED_APIS API files, kept ${#KEPT_APIS[@]}"
+
+  # 2. Transitive-closure of Models referenced by the kept APIs + Config
+  MODELS_DIR="$GENERATED/src/Models"
+  if [ -d "$MODELS_DIR" ] && ls "$MODELS_DIR"/*.mo >/dev/null 2>&1; then
+    collect_imports() {
+      # APIs use "../Models/Foo"; Models use "./Foo".  Either way we want
+      # just the model name.
+      grep -hE 'import.*"(\.\./Models/|\./)' "$@" 2>/dev/null \
+        | sed -E 's#.*"(\.\./Models/|\./)([^"]+)".*#\2#' \
+        | sort -u
+    }
+    NEEDED=$(mktemp)
+    collect_imports "${KEPT_APIS[@]}" "$GENERATED/src/Config.mo" > "$NEEDED"
+    PREV=0
+    while true; do
+      CUR=$(wc -l < "$NEEDED" | tr -d ' ')
+      [ "$CUR" -eq "$PREV" ] && break
+      PREV=$CUR
+      MODEL_FILES=()
+      while IFS= read -r name; do
+        f="$MODELS_DIR/$name.mo"
+        [ -f "$f" ] && MODEL_FILES+=("$f")
+      done < "$NEEDED"
+      if [ ${#MODEL_FILES[@]} -gt 0 ]; then
+        { cat "$NEEDED"; collect_imports "${MODEL_FILES[@]}"; } | sort -u > "${NEEDED}.tmp"
+        mv "${NEEDED}.tmp" "$NEEDED"
+      fi
+    done
+
+    # 3. Delete unreferenced Models
+    REMOVED_MODELS=0
+    for model_file in "$MODELS_DIR"/*.mo; do
+      [ -f "$model_file" ] || continue
+      name=$(basename "$model_file" .mo)
+      if ! grep -qx "$name" "$NEEDED"; then
+        rm "$model_file"
+        ((REMOVED_MODELS++)) || true
+      fi
+    done
+    rm "$NEEDED"
+    KEPT_MODELS=$(ls "$MODELS_DIR"/*.mo 2>/dev/null | wc -l | tr -d ' ')
+    echo "  Kept $KEPT_MODELS models (removed $REMOVED_MODELS unreferenced)"
+  fi
+
+  # 4. Drop pruned entries from .openapi-generator/FILES so mops doesn't
+  #    complain about missing referenced files at publish time.
+  FILES_LIST="$GENERATED/.openapi-generator/FILES"
+  if [ -f "$FILES_LIST" ]; then
+    TMPFILES=$(mktemp)
+    while IFS= read -r entry; do
+      path="$GENERATED/$entry"
+      if [ -f "$path" ] || [ -d "$path" ]; then
+        echo "$entry"
+      fi
+    done < "$FILES_LIST" > "$TMPFILES"
+    mv "$TMPFILES" "$FILES_LIST"
+  fi
+fi
+
 # --- skill / SKILL.md ---
 # Two mutually-exclusive ways to declare the skill in the generator YAML:
 #   skillFile: <path>     (relative to the YAML's directory)

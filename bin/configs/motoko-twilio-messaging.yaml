@@ -8,6 +8,49 @@ additionalProperties:
   hideGenerationTimestamp: "true"
   useDfx: false
   artifactRepoUrl: "https://github.com/caffeinelabs/twilio-client"
+  # Custom: generate.sh prunes to these APIs + their transitive model
+  # deps after the Java generator runs.  Placed under
+  # additionalProperties so README.mustache sees the same list when it
+  # renders the "API Subset" note.  Remove this block to keep the full
+  # merged surface (all v1 + all v2010).
+  focusApis:
+    # --- v1 (messaging-service configuration on messaging.twilio.com) ---
+    - MessagingV1AlphaSender
+    - MessagingV1BrandRegistration
+    - MessagingV1BrandRegistrationOtp
+    - MessagingV1BrandVetting
+    - MessagingV1ChannelSender
+    - MessagingV1Deactivations
+    - MessagingV1DestinationAlphaSender
+    - MessagingV1DomainCerts
+    - MessagingV1DomainConfig
+    - MessagingV1DomainConfigMessagingService
+    - MessagingV1DomainValidateDns
+    - MessagingV1ExternalCampaign
+    - MessagingV1LinkshorteningMessagingService
+    - MessagingV1LinkshorteningMessagingServiceDomainAssociation
+    - MessagingV1PhoneNumber
+    - MessagingV1RequestManagedCert
+    - MessagingV1Service
+    - MessagingV1ShortCode
+    - MessagingV1TollfreeVerification
+    - MessagingV1UsAppToPerson
+    - MessagingV1UsAppToPersonUsecase
+    - MessagingV1Usecase
+    # --- v2010 messaging surface (on api.twilio.com) ---
+    - Api20100401Account
+    - Api20100401Balance
+    - Api20100401Message
+    - Api20100401Media                                    # MMS: list media on a message
+    - Api20100401MediaInstance                            # MMS: fetch/delete individual media
+    - Api20100401UserDefinedMessage
+    - Api20100401UserDefinedMessageSubscription
+    - Api20100401IncomingPhoneNumber
+    - Api20100401IncomingPhoneNumberLocal
+    - Api20100401IncomingPhoneNumberMobile
+    - Api20100401IncomingPhoneNumberTollFree
+    - Api20100401AvailablePhoneNumberCountry
+    - Api20100401DependentPhoneNumber
 
 # Reproducibility: the inputSpec above is produced by spec-merge from the
 # raw source specs in specs/external/.  generate.sh runs this command
