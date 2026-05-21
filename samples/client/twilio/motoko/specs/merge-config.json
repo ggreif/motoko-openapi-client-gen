@@ -1,8 +1,13 @@
 {
-  "_comment": "Inputs are resolved relative to this file's directory. Per-input transforms run before the merge so collisions can be disambiguated. Tag/schema/operationId prefixes also drive the resulting Motoko module names (e.g. tagPrefix=MessagingV1 yields MessagingV1ServiceApi.mo).",
+  "_comment": "Inputs are resolved relative to this file's directory. Twilio's two OpenAPI specs are already namespace-disjoint (MessagingV1* vs Api20100401* tags; messaging.v1.* vs api.v2010.* schemas; disjoint path prefixes), so no prefix transforms are needed. The serverOverride per input is essential, though — without it the merged spec carries two top-level hosts and operations would silently inherit the wrong one.",
   "inputs": [
     {
-      "path": "external/twilio_messaging_v1.json"
+      "path": "external/twilio_messaging_v1.json",
+      "serverOverride": "https://messaging.twilio.com"
+    },
+    {
+      "path": "external/twilio_api_v2010.json",
+      "serverOverride": "https://api.twilio.com"
     }
   ]
 }

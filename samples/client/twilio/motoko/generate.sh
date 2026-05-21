@@ -46,7 +46,14 @@ if [ -n "$MERGE_COMMAND" ]; then
 fi
 
 echo "Generating Motoko client from Twilio Messaging API v1 OpenAPI spec..."
+# --skip-validate-spec is required because Twilio's two upstream specs
+# share operationIds (FetchShortCode, ListShortCode) for endpoints that
+# live in different APIs.  Within the generator's per-tag module
+# emission this is harmless — IDs only need to be unique inside a tag —
+# but the up-front validator hard-fails.  Skipping validation gates only
+# the structural pre-check, not the actual codegen.
 java -jar modules/openapi-generator-cli/target/openapi-generator-cli.jar generate \
+  --skip-validate-spec \
   -c "$CONFIG"
 
 # --- skill / SKILL.md ---

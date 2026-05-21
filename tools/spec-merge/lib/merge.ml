@@ -22,10 +22,25 @@ let write_file path s =
   output_string oc s;
   close_out oc
 
-let parse_yaml_or_json s : value =
-  match Yaml.of_string s with
-  | Ok v -> (v :> value)
-  | Error (`Msg m) -> failwith ("parse error: " ^ m)
+(* Real-world OpenAPI specs use JSON-specific Unicode-escape sequences
+   that libyaml's strict YAML parser rejects (it expects only `\xNN`-style
+   escapes, not JSON's `\uXXXX`).  Dispatch on file extension instead of
+   trying to treat one parser as the universal donor. *)
+let parse_by_ext ~filename s : value =
+  let ext = String.lowercase_ascii (Filename.extension filename) in
+  match ext with
+  | ".json" -> (Ezjsonm.value_from_string s :> value)
+  | ".yml" | ".yaml" ->
+    (match Yaml.of_string s with
+     | Ok v -> (v :> value)
+     | Error (`Msg m) -> failwith ("YAML parse error in " ^ filename ^ ": " ^ m))
+  | _ ->
+    (* Best-effort: try JSON first, fall back to YAML. *)
+    (try (Ezjsonm.value_from_string s :> value)
+     with _ ->
+       match Yaml.of_string s with
+       | Ok v -> (v :> value)
+       | Error (`Msg m) -> failwith ("parse error in " ^ filename ^ ": " ^ m))
 
 let emit_json (v : value) : string =
   (* Pretty-print with 2-space indent, trailing newline.  Ezjsonm.to_string
@@ -152,12 +167,18 @@ let apply_operation_id_prefix prefix (spec : value) : value =
   `O kvs
 
 (* Apply serverOverride:  set a per-operation `servers` array so each
-   operation pins to the right host, irrespective of any top-level
-   `servers` the merged document carries. *)
+   operation pins to the right host (this is the OpenAPI-standard way),
+   AND also stamp an `x-server-override` vendor extension so the Motoko
+   api.mustache template can read the same value directly (the standard
+   `servers` field isn't surfaced to operation templates by
+   openapi-generator's default Java side, but vendorExtensions are). *)
 let apply_server_override url (spec : value) : value =
   let server_arr = `A [`O [("url", `String url)]] in
   let stamp_op op =
-    `O (obj_set "servers" server_arr (as_obj op))
+    as_obj op
+    |> obj_set "servers" server_arr
+    |> obj_set "x-server-override" (`String url)
+    |> fun kvs -> `O kvs
   in
   let stamp_path_item pi =
     `O (List.map (fun (k, v) ->
@@ -191,19 +212,28 @@ let apply_transform (t : transform) (spec : value) : value =
 
 (* ----- Merging ----- *)
 
-(* Union of two objects keyed by name, with a collision callback so we
-   can produce a useful error when two inputs claim the same key. *)
-let union_objects ~where a b =
-  let keys_a = List.map fst a in
-  let keys_b = List.map fst b in
-  let dup = List.filter (fun k -> List.mem k keys_a) keys_b in
-  (match dup with
+(* Union of two objects keyed by name.  Strict mode (~lenient:false) hard-
+   fails on any key collision — appropriate for components.schemas where
+   silent dedup of "same name, different shape" would be a bug.  Lenient
+   mode (~lenient:true) lets collisions through when the two values are
+   structurally equal (deep-equal via OCaml `=`), which is how identical
+   securitySchemes / parameters from two specs of the same vendor
+   correctly dedup. *)
+let union_objects ?(lenient=false) ~where a b =
+  let conflicts = ref [] in
+  let from_b_kept = List.filter (fun (k, v) ->
+    match List.assoc_opt k a with
+    | None -> true
+    | Some v_a when lenient && v_a = v -> false
+    | Some _ -> conflicts := k :: !conflicts; false
+  ) b in
+  (match !conflicts with
    | [] -> ()
    | xs ->
      failwith (Printf.sprintf "collision in %s: %s — add a prefix to one of \
                                the input transforms to disambiguate"
-                 where (String.concat ", " xs)));
-  a @ b
+                 (where : string) (String.concat ", " xs)));
+  a @ from_b_kept
 
 (* Dedup tag-array by tag.name, keeping first occurrence. *)
 let dedup_tags arr =
@@ -241,10 +271,27 @@ let merge_two (a : value) (b : value) : value =
   let merged_components =
     let comp_a = match find_opt "components" ao with Some (`O o) -> o | _ -> [] in
     let comp_b = match find_opt "components" bo with Some (`O o) -> o | _ -> [] in
-    let base = union_objects ~where:"components"
-                 (List.filter (fun (k, _) -> k <> "schemas") comp_a)
-                 (List.filter (fun (k, _) -> k <> "schemas") comp_b) in
-    `O (obj_set "schemas" merged_schemas base)
+    (* Each sub-key of components (securitySchemes, parameters, requestBodies,
+       responses, ...) is itself a map; we merge them per-sub-key with the
+       lenient policy: keys that appear in both with structurally equal
+       values dedup silently, otherwise hard-fail.  schemas is overridden
+       further down with strict-collision semantics. *)
+    let all_keys =
+      List.sort_uniq compare
+        (List.map fst comp_a @ List.map fst comp_b)
+      |> List.filter (fun k -> k <> "schemas")
+    in
+    let merged_subkeys = List.map (fun k ->
+      match List.assoc_opt k comp_a, List.assoc_opt k comp_b with
+      | Some (`O oa), Some (`O ob) ->
+        (k, `O (union_objects ~lenient:true ~where:("components." ^ k) oa ob))
+      | Some v, None | None, Some v -> (k, v)
+      | Some _, Some _ ->
+        failwith ("components." ^ k ^ ": both inputs declare this key with \
+                  non-object values — unsupported")
+      | None, None -> assert false
+    ) all_keys in
+    `O (obj_set "schemas" merged_schemas merged_subkeys)
   in
 
   let merged_tags =
@@ -281,8 +328,8 @@ let parse_transform kvs : transform =
     operation_id_prefix = g "operationIdPrefix";
     server_override     = g "serverOverride"; }
 
-let parse_config ~config_dir s : config =
-  let v = parse_yaml_or_json s in
+let parse_config ~config_dir ~config_filename s : config =
+  let v = parse_by_ext ~filename:config_filename s in
   let root = as_obj v in
   let inputs =
     match find_opt "inputs" root with
@@ -307,7 +354,7 @@ let run (cfg : config) : value =
   | first :: rest ->
     let load i =
       let raw = read_file i.path in
-      apply_transform i.transform (parse_yaml_or_json raw)
+      apply_transform i.transform (parse_by_ext ~filename:i.path raw)
     in
     let merged = List.fold_left (fun acc inp -> merge_two acc (load inp))
                    (load first) rest

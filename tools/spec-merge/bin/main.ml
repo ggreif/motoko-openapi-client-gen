@@ -3,6 +3,7 @@ open Cmdliner
 let run config_path out_path =
   let config_dir = Filename.dirname config_path in
   let cfg = Spec_merge.Merge.parse_config ~config_dir
+              ~config_filename:config_path
               (Spec_merge.Merge.read_file config_path) in
   let merged = Spec_merge.Merge.run cfg in
   Spec_merge.Merge.write_file out_path (Spec_merge.Merge.emit_json merged);
