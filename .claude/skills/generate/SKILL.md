@@ -162,6 +162,64 @@ let config = { defaultConfig with auth = ?#bearer "my-token" };
 let config = { defaultConfig with auth = ?#basicAuth { user = sid; password = token } };
 ```
 
+## Writing the connector `SKILL.md` — Caffeine's perspective
+
+Every production client ships a `SKILL.md` at package root (mechanism
+documented in the `new-client` skill: `skillFile:` or inline `skill: |`
+in the generator YAML, extracted by `generate.sh`, listed in
+`mops.toml`'s `files = [...]`). This section is about *content*, not
+mechanics.
+
+**Audience: Caffeine, not a human.** The SKILL.md is consumed by an AI
+agent (Caffeine) deciding whether to reach for the package and how to
+use it. It is NOT a README, NOT a tutorial, NOT marketing copy. Write
+it as you would brief a competent peer who has 60 seconds and needs to
+produce working canister code.
+
+Implications for content:
+
+- **Open with two things Caffeine actually needs.** What this client
+  covers (in one sentence, with the explicit scope boundary), and the
+  trigger phrases that should pull it in. Frontmatter `description:` is
+  what skill-matching reads first — make it dense and specific.
+- **Trigger phrases are weighted hints, not search keywords.** List the
+  *concrete language* a user would utter to trigger this skill ("send
+  SMS", "buy a phone number", "A2P 10DLC"), not abstract category
+  words ("messaging API").
+- **Code examples are the load-bearing artifact.** Caffeine will lift
+  them nearly verbatim. So: every enum-typed argument uses a real
+  variant that exists in the regenerated code (verify with `grep` on
+  the actual `*Enum*.mo` modules — don't guess); every code block
+  compiles against the current package; placeholders for caller-supplied
+  values are obvious (e.g. `accountSid`, `"+15558675309"`). Avoid
+  pseudocode.
+- **Disambiguate from raw HTTP outcalls explicitly.** Tell Caffeine
+  what the wrong path looks like (`ic.http_request` against the
+  vendor's host) and why it's wrong (bypasses generated typing /
+  parsing / auth). Without this, Caffeine sometimes defaults to raw
+  HTTP because it knows that pattern.
+- **Surface the non-obvious.** Caffeine can read function signatures
+  itself; what it can't infer is: pitfalls, dated deadlines (e.g. "as
+  of 2026-06-30, X becomes required"), valid values for `Text`-typed
+  enum-in-disguise fields, lowercase variant case-sensitivity,
+  rate-limit numbers, common error codes.
+- **State the architecture truths the codegen can't express.** If
+  the client has unusual properties (e.g. multi-host routing with a
+  dead `Config.baseUrl`), name them. Otherwise Caffeine will try
+  things that don't apply.
+- **Don't repeat what the type signatures already tell.** Listing the
+  arguments of a function it's about to call is wasted tokens.
+- **Cap length around 200 lines.** Long SKILL files waste context for
+  every Caffeine invocation that loads them. The `weatherapi-client`
+  SKILL at 53 lines is on the lean end; `twilio-client` at ~194 lines
+  is the upper end justifiable by a richer surface.
+
+A SKILL.md that meets these is a force multiplier on the package: with
+it, Caffeine produces working canister code on the first attempt;
+without it, Caffeine improvises around the package and produces broken
+code that compiles. Treat it as a first-class deliverable, not
+documentation.
+
 ## Common Issues
 
 1. **Stale JAR**: Rebuild the generator after any template or Java change.
