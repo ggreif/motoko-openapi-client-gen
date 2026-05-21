@@ -1,0 +1,3 @@
+(library
+ (name spec_merge)
+ (libraries yaml ezjsonm))

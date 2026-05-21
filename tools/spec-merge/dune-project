@@ -1,0 +1,17 @@
+(lang dune 3.0)
+(name spec_merge)
+(generate_opam_files true)
+
+(package
+ (name spec_merge)
+ (synopsis "OpenAPI spec merger for openapi-generator")
+ (description "Merges multiple OpenAPI 3 specs into one, with per-input \
+              prefix transforms for tags, schemas, and operation IDs, \
+              so the result can be fed to openapi-generator-cli as a \
+              single -i input.")
+ (depends
+  (ocaml (>= 4.14))
+  dune
+  (yaml (>= 3.0))
+  ezjsonm
+  cmdliner))
