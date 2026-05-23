@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>org.openapitools</groupId>
+    <artifactId>motoko-client-plugin</artifactId>
+    <packaging>jar</packaging>
+    <name>motoko-client-plugin</name>
+    <version>1.0.0-SNAPSHOT</version>
+
+    <description>
+        Out-of-tree OpenAPI Generator plugin for the Motoko client codegen.
+        Loaded via Java's ServiceLoader SPI; pair with an upstream
+        openapi-generator-cli JAR on the same classpath.
+    </description>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.13.0</version>
+                <configuration>
+                    <source>11</source>
+                    <target>11</target>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.openapitools</groupId>
+            <artifactId>openapi-generator</artifactId>
+            <version>${openapi-generator-version}</version>
+            <scope>provided</scope>
+        </dependency>
+    </dependencies>
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <openapi-generator-version>7.22.0-SNAPSHOT</openapi-generator-version>
+    </properties>
+</project>
