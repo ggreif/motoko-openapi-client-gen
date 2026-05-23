@@ -36,6 +36,7 @@
             jdk17
             maven
             gradle
+            openapi-generator-cli
           ]) ++ [
             spec-merge
           ] ++ (with ocamlPackages; [
