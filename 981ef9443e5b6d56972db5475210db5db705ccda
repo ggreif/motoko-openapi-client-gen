@@ -1,0 +1,71 @@
+TODO: ship pre-built plugin JAR alongside the source tree
+
+Today the only way to get motoko-client-plugin-1.0.0-SNAPSHOT.jar
+is `mvn -DskipTests package` from a clone.  README's "Without Nix"
+section assumes the user is happy to build.  For consumers who
+already have openapi-generator-cli installed (Homebrew / sdkman /
+manual JAR) but don't want a Java/Maven toolchain just to get a
+38 KB plugin JAR, we should publish pre-builts.
+
+## Three channels, ranked by friction
+
+1. **GitHub Releases asset (recommended)** — `gh release create`
+   + JAR upload per version. Trivially scriptable inside the
+   plugin-scoped CI workflow (reminder on 754254c70c3) — tag-push
+   triggers a build + publish step.  Consumer side:
+     curl -L -o motoko-client-plugin.jar \
+       https://github.com/ggreif/motoko-openapi-client-gen/releases/download/<tag>/motoko-client-plugin.jar
+   then drop on classpath alongside openapi-generator-cli.jar.
+   Zero infrastructure cost beyond the workflow.
+
+2. **JitPack** — zero setup on our side; users add
+   `com.github.ggreif.motoko-openapi-client-gen:motoko-client-plugin:<tag>`
+   and JitPack builds on demand.  Adds a JitPack repo to consumers'
+   pom.xml.  Free.
+
+3. **Maven Central / Sonatype OSS** — the "proper" way.  Requires
+   GPG signing, namespace verification, separate release pipeline.
+   With our pom's <scope>provided</scope> on openapi-generator, the
+   only consumers who benefit are Maven-native projects pulling the
+   plugin via coordinates — which is a small audience.  Skip unless
+   demand materialises.
+
+## Design decisions to make before shipping
+
+A. **Versioning scheme.** Two reasonable choices:
+   - `v7.22.0-mot.1` (upstream-major.minor + our patch counter) —
+     makes the compatibility surface legible at a glance.  When
+     nixpkgs bumps openapi-generator-cli to 7.23.x we'd retag.
+   - `v1.0.0` independent semver — conventional but hides the
+     upstream coupling.  Compatibility lives in CHANGELOG + README.
+
+B. **README restructure.** Once releases exist the "Without Nix"
+   section should lead with `curl <release-url>`, demoting
+   `mvn package` to "or build from source".  Order matters: the
+   download-and-go path should be the front door.
+
+C. **What about the parent repo's existing structure?** The
+   plugin JAR target/ dir is currently in .gitignore (correctly).
+   The release artefact lives at
+   modules/motoko-client-plugin/target/motoko-client-plugin-1.0.0-SNAPSHOT.jar
+   — the CI workflow uploads from there.  No tree changes needed.
+
+## Coupling to plugin-scoped CI (reminder on 754254c70c3)
+
+This is a natural follow-on to the CI work.  Single workflow:
+  on: push to tags matching v*
+  jobs:
+    build-and-test (the gate steps from the CI reminder)
+    publish-jar:
+      needs: build-and-test
+      runs: gh release create <tag> .../motoko-client-plugin.jar
+Don't ship the CI without this; don't ship the artefact pipeline
+without the gate.
+
+## When to act
+
+After the plugin-scoped CI is in place and stable for a couple of
+client refreshes.  Trigger phrases: any user (internal or external)
+asking "can I just download the plugin JAR without building it",
+or any prep for making the repo more discoverable to non-Caffeine
+Motoko developers.
