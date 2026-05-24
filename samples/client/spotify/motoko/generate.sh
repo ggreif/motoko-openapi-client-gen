@@ -39,5 +39,56 @@ if [ -r "$MOPS_TOML" ] && ! grep -qE '^ic[[:space:]]*=' "$MOPS_TOML"; then
   echo "mops.toml: added 'ic = \"4.0.0\"' to [dependencies] (icp-cli mode: mo:ic bindings for aaaaa-aa)"
 fi
 
+# --- skill / SKILL.md ---
+# Two mutually-exclusive ways to declare the skill in the generator YAML:
+#   skillFile: <path>     (relative to the YAML's directory)
+#   skill: |              (inline YAML literal block)
+# Whenever either is set, the body is written to SKILL.md at the package
+# root and the just-emitted mops.toml's `files = [...]` line is patched
+# to include it so `mops publish` ships the file.
+SKILL_FILE=$(grep -E '^[[:space:]]*skillFile:' "$CONFIG" | head -1 | sed 's/^[[:space:]]*skillFile:[[:space:]]*//; s/[[:space:]]*$//' || true)
+SKILL_INLINE=$(awk '
+  /^[[:space:]]*skill:[[:space:]]*\|[-+]?[[:space:]]*$/ {
+    in_block = 1; indent = ""; next
+  }
+  in_block {
+    if (indent == "") {
+      if (match($0, /^[[:space:]]+/) == 0) { in_block = 0; next }
+      indent = substr($0, 1, RLENGTH)
+    }
+    if ($0 != "" && substr($0, 1, length(indent)) != indent) {
+      in_block = 0; next
+    }
+    print substr($0, length(indent) + 1)
+  }
+' "$CONFIG")
+if [ -n "$SKILL_FILE" ] && [ -n "$SKILL_INLINE" ]; then
+  echo "skill: cannot set both 'skillFile:' and 'skill: |' — they are mutually exclusive" >&2
+  exit 1
+fi
+SKILL_OUT="$GENERATED/SKILL.md"
+SKILL_FROM=""
+if [ -n "$SKILL_FILE" ]; then
+  CONFIG_DIR="$(dirname "$CONFIG")"
+  SKILL_SRC="$CONFIG_DIR/$SKILL_FILE"
+  if [ ! -f "$SKILL_SRC" ]; then
+    echo "skill: $SKILL_SRC not found" >&2
+    exit 1
+  fi
+  cp "$SKILL_SRC" "$SKILL_OUT"
+  SKILL_FROM="skillFile: $SKILL_FILE"
+elif [ -n "$SKILL_INLINE" ]; then
+  printf '%s\n' "$SKILL_INLINE" > "$SKILL_OUT"
+  SKILL_FROM="inline 'skill: |' block"
+fi
+if [ -n "$SKILL_FROM" ]; then
+  # Inject "SKILL.md" at the front of the files glob (mops auto-includes
+  # README.md / LICENSE / mops.toml at root but not other root files —
+  # SKILL.md still has to be enumerated explicitly).
+  sed -i.bak 's|files = \["src/Config.mo",|files = ["SKILL.md", "src/Config.mo",|' "$GENERATED/mops.toml"
+  rm -f "$GENERATED/mops.toml.bak"
+  echo "skill: wrote SKILL.md from $SKILL_FROM, patched mops.toml"
+fi
+
 echo "Client generation complete!"
 echo "Generated files in: $GENERATED/"

@@ -3,8 +3,135 @@ outputDir: samples/client/spotify/motoko/generated
 inputSpec: samples/client/spotify/motoko/specs/spotify-openapi.yml
 templateDir: modules/openapi-generator/src/main/resources/motoko
 artifactId: spotify-client
-artifactVersion: 0.2.0
+artifactVersion: 0.2.1
 additionalProperties:
   hideGenerationTimestamp: "true"
   useIcp: true
   artifactRepoUrl: "https://github.com/caffeinelabs/spotify-client"
+  skill: |
+    ---
+    name: extension-spotify-data
+    description: >-
+      Use the `spotify-client` mops package whenever the user asks the
+      canister to look up music catalog data on Spotify (albums, artists,
+      tracks, playlists, search, new releases, genres, markets) or to
+      drive a user's Spotify account (their library, currently-playing
+      track, queue, player controls). The package wraps the Spotify Web
+      API at `https://api.spotify.com/v1` via outbound HTTPS calls.
+    version: 0.2.0
+    compatibility:
+      mops:
+        spotify-client: "~0.2.1"
+    ---
+
+    # spotify-client
+
+    Motoko bindings for the [Spotify Web API](https://developer.spotify.com/documentation/web-api),
+    generated from Spotify's official OpenAPI spec.
+
+    ## Trigger phrases
+
+    Reach for this skill on any request mentioning: Spotify, song, track,
+    artist, album, playlist, music search, new releases, genres, markets,
+    currently playing, recently played, queue, player, library, saved
+    albums/tracks/shows/episodes, audiobooks, podcasts (shows/episodes),
+    chapters, categories, "what's playing", "play next", "skip", "pause",
+    "resume", "shuffle", "repeat".
+
+    ## How Spotify authentication works (read before wiring)
+
+    Every Spotify Web API call needs an **OAuth 2.0 Bearer access token**.
+    Tokens are obtained off-chain — the canister never sees a client
+    secret. There are two flows that matter:
+
+    1. **Client Credentials flow** — server-to-server, no user. The token
+       lets you read public catalog data only: `search`, `getAnAlbum`,
+       `getAnArtist`, `getTrack`, `getNewReleases`, `getGenres`,
+       `getCategories`, `getMarkets`, public playlists, public podcasts.
+       It **cannot** touch any `/me/*` endpoint, cannot read user
+       library, cannot drive the player. Mint these on a trusted off-IC
+       service (or your frontend's edge function) by `POST`ing
+       client_id + client_secret to
+       `https://accounts.spotify.com/api/token`, then pass the resulting
+       `access_token` to the canister.
+
+    2. **Authorization Code flow (with PKCE)** — user-facing. The user
+       signs in to Spotify in the browser, grants the requested scopes,
+       and your app receives an `access_token` + `refresh_token`. Any
+       `/me/*` call, playlist mutation, library write, or player command
+       needs this kind of token, plus the right OAuth scope (e.g.
+       `user-read-playback-state`, `playlist-modify-public`,
+       `user-library-read`). The canister never sees the user's Spotify
+       password; it just receives the access token.
+
+    Tokens expire after **1 hour**. Refresh is also off-chain — the
+    canister should treat any 401 from Spotify as "ask the client to
+    refresh and retry", not as a permanent failure.
+
+    ## Usage
+
+    ```motoko
+    import Spotify "mo:spotify-client/Apis/SearchApi";
+    import Tracks  "mo:spotify-client/Apis/TracksApi";
+    import Player  "mo:spotify-client/Apis/PlayerApi";
+    import { defaultConfig } "mo:spotify-client/Config";
+
+    // Token comes from off-chain OAuth — never hardcode it.
+    // Store it in a stable variable, scoped per-caller if multi-tenant.
+    let cfg = {
+      defaultConfig with
+        auth               = ?#bearer "BQA...accessToken...";
+        max_response_bytes = ?200_000;     // album/playlist payloads
+        is_replicated      = ?false;        // catalog reads
+    };
+
+    // 1. Catalog search (works with Client Credentials token)
+    let results = await* Spotify.search(
+      cfg,
+      "weezer",         // q
+      [#track, #album], // type_  — variants from ItemTypeInner
+      "US",             // market
+      10,               // limit (max 50)
+      0,                // offset
+      #audio            // includeExternal
+    );
+
+    // 2. Track lookup by Spotify ID
+    let track = await* Tracks.getTrack(cfg, "11dFghVXANMlKmJXsNCbNl", "US");
+
+    // 3. Player control (needs Authorization Code token + scopes)
+    //    Mutations: leave is_replicated null/true; consensus matters.
+    let userCfg = { cfg with is_replicated = null };
+    await* Player.pauseAUsersPlayback(userCfg, "" /* deviceId */);
+    ```
+
+    Every operation in the spec has both a module-level form
+    (`async* T`, takes `config` as first arg) and a class-level form
+    inside a per-API class (`async T`, config captured at construction).
+    The module-level form composes more cleanly inside a canister;
+    reach for the class form only if you're mirroring the OpenAPI
+    "API client" idiom verbatim.
+
+    ## Notes
+
+    - `is_replicated = ?false` is fine for catalog **reads** (search,
+      `get*Album`, `get*Track`, `getNewReleases`, public playlists). It
+      cuts the cycle cost ~13×.
+    - For **mutations** (`saveAlbumsUser`, `addToQueue`, `startAUsersPlayback`,
+      `setRepeatModeOnUsersPlayback`, playlist edits) leave
+      `is_replicated = null` so consensus replication catches any
+      single-node tampering. The user is paying for the cycles either
+      way; correctness > savings here.
+    - Spotify rate-limits per-app. On `429` the response carries a
+      `Retry-After` header (seconds). Surface that to the caller; do
+      not silently retry inside the canister.
+    - Bearer tokens are sensitive. Keep them in a stable variable scoped
+      to the caller's principal; never log them; never return them from
+      a query. Treat a token leak the same as a password leak.
+    - All operations use HTTPS outcalls. Budget `cycles` at the canister
+      level (`defaultConfig.cycles` is 30 G); large endpoints like
+      `search` with `limit=50` or `getAnAlbum` with many tracks may need
+      more.
+    - Endpoint IDs are Spotify's base-62 IDs (`11dFghVXANMlKmJXsNCbNl`),
+      not URIs (`spotify:track:...`). When the user pastes a Spotify
+      URL, extract the ID after the last `/` and before any `?`.
