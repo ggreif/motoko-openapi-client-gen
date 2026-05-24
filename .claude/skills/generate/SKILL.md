@@ -37,39 +37,91 @@ separate git submodule under `samples/client/<name>/motoko/generated/`:
 | `motoko-x.yaml` | `caffeinelabs/x-client` | pending |
 | `motoko-twilio.yaml` | `caffeinelabs/twilio-client` | pending |
 
-## Build the Generator (when templates or Java changed)
+## Build the Plugin (preferred path, when templates or Java changed)
+
+The motoko codegen ships as an **out-of-tree plugin** at
+`modules/motoko-client-plugin/`, loaded onto the classpath of
+nixpkgs's vanilla `openapi-generator-cli` (7.22.0).  Build the
+plugin alone — small, fast:
 
 ```bash
-mvn install -DskipTests -Dmaven.test.skip=true -Dforbiddenapis.skip=true \
-  -pl modules/openapi-generator-cli -am -q
+cd modules/motoko-client-plugin
+mvn -DskipTests package
 ```
 
-Always rebuild after modifying `.mustache` templates or generator Java code.
-A stale JAR silently produces outdated output.
+Output: `target/motoko-client-plugin-1.0.0-SNAPSHOT.jar`. About
+1-2 seconds. Rebuild after any change to
+`modules/motoko-client-plugin/src/main/{java,resources}/` — a
+stale JAR silently produces outdated output.  The plugin JAR's
+sources are mirrored from `modules/openapi-generator/src/main/`,
+so when you edit one, also mirror the change to the other (a
+sync utility is on the TODO list — for now, `cp` lock-stepped
+the two `api.mustache` copies during the icp-cli backport).
+
+The `nix develop` shell carries both `mvn` and the nixpkgs
+`openapi-generator-cli`, so no other setup is needed.
 
 ## Generate
 
-### Test clients — use `bin/generate-samples.sh`
+### Production clients — use the per-client `generate.sh`
 
 ```bash
-bin/generate-samples.sh bin/configs/motoko-petstore-nodfx.yaml
-bin/generate-samples.sh bin/configs/motoko-enum-test.yaml
-# etc.
+nix develop --command bash samples/client/spotify/motoko/generate.sh
+nix develop --command bash samples/client/twilio/motoko/generate.sh
+nix develop --command bash samples/client/weatherapi/motoko/generate.sh
 ```
 
-This script auto-builds the JAR if missing.
+Each `generate.sh` already invokes the plugin path
+(`java -cp $OPENAPI_GENERATOR_JAR:$MOTOKO_PLUGIN_JAR org.openapitools.codegen.OpenAPIGenerator ...`)
+with `OPENAPI_GENERATOR_JAR` defaulting to nixpkgs's binary and
+`MOTOKO_PLUGIN_JAR` to the locally built plugin. Either env var
+can be overridden if the JARs live elsewhere.
 
-### Production clients — use `java -jar` directly
+The per-client script also handles post-generation steps that
+codegen alone doesn't cover:
+
+- writing `SKILL.md` from the YAML's `skill: |` / `skillFile:` block,
+- patching `mops.toml` to include `SKILL.md` under `files = [...]`,
+- adding mode-specific `mops.toml` dependencies (e.g. `ic = "4.0.0"`
+  for `useIcp: true` clients),
+- running `focusApis` pruning (twilio).
+
+### Test clients
+
+Test clients (under `bin/configs/motoko-{petstore-nodfx,enum-test,
+type-coverage-test,httpbin-auth-test,jsonplaceholder-test,
+yamaha-test}.yaml`) still use the **legacy monolithic** path
+(see below) until they're migrated to plugin-aware shells. They're
+for generator development; the slower fat-JAR build is acceptable
+in the dev loop.
+
+## Legacy: monolithic fat-JAR build (deprecated)
+
+The original generator path built a fat
+`modules/openapi-generator-cli/target/openapi-generator-cli.jar`
+that included the Motoko codegen alongside ~150 other generators.
+This still works but is **deprecated** for production-client use:
 
 ```bash
+# fat-JAR build (slow, several minutes)
+mvn install -DskipTests -Dmaven.test.skip=true -Dforbiddenapis.skip=true \
+  -pl modules/openapi-generator-cli -am -q
+
+# direct invocation
 java -jar modules/openapi-generator-cli/target/openapi-generator-cli.jar generate \
   -c bin/configs/motoko-spotify.yaml
+
+# or the wrapper that auto-builds-if-missing
+bin/generate-samples.sh bin/configs/motoko-petstore-nodfx.yaml
 ```
 
-Or use the per-client `generate.sh` script:
-```bash
-bash samples/client/spotify/motoko/generate.sh
-```
+Keep using this path **only** for:
+- in-tree test clients listed above, and
+- generator development where rebuilding 150 generators on every
+  change isn't a problem.
+
+Production-client `generate.sh` scripts no longer reference this
+JAR; they exclusively use the plugin path.
 
 ### ⚠️ When regenerating for a version bump
 
@@ -122,15 +174,39 @@ $MOC --check $PACKAGE_FLAGS src/Apis/SomeApi.mo
 Note: `npx ic-mops check <file>` does not work well due to serde dev-dependency
 (`motoko_candid` requires `candid`). Use `ic-mops sources` + `moc --check`.
 
-## DFX Mode (`useDfx: true`)
+## Three Toolchain Modes
 
-**Currently unavailable** — the IC agent dependencies are outdated.
-`petstore/motoko` (the only `useDfx: true` client) will typecheck but
-actor-idl related failures are pre-existing and expected.
+The template emits a different `http_request` plumbing block per
+toolchain.  Pick one in the YAML's `additionalProperties`:
 
-DFX mode will return once the upstream dependencies are updated.
+| `additionalProperties` | mustache branch | type source for `HttpRequestArgs` etc. | runtime |
+|---|---|---|---|
+| (neither) | `{{^useImportedInterface}}` | inline definitions in each `*Api.mo` | vanilla mops (no IC-canister deps) |
+| `useDfx: true` | `{{#useDfx}}` | `import { type http_request_args; … } "ic:aaaaa-aa"` (IDL-style) + PascalCase aliases | dfx (canister-alias mechanism) |
+| `useIcp: true` | `{{#useIcp}}` | `import { type HttpRequestArgs; … } "mo:ic/Types"` (mops `ic` package) | icp-cli + mops `ic` dep |
 
-PUT and DELETE are commented out in DFX mode (dfx doesn't expose them yet).
+Body refs uniformly use **PascalCase** (`HttpRequestArgs`,
+`HttpRequestResult`, `HttpHeader`, `HttpMethod`) regardless of
+mode.
+
+### Per-mode notes
+
+- **Vanilla**: defines the four types inline in every API module
+  and instantiates the management canister directly via
+  `(actor "aaaaa-aa" : actor { http_request : ... })`. No external
+  deps.
+- **DFX (`useDfx: true`)**: currently brittle.  The IC-agent
+  dependencies are outdated; `petstore/motoko` (the only
+  `useDfx: true` client) typechecks but `--actor-idl` failures are
+  pre-existing and expected.  `PUT` and `DELETE` are commented
+  out in DFX mode (dfx doesn't expose them yet).
+- **ICP-CLI (`useIcp: true`)** — preferred when the client needs
+  the `aaaaa-aa` management canister types but doesn't want a
+  dfx dependency. Pulls `HttpRequestArgs` etc. from the
+  [`ic`](https://mops.one/ic) mops package (`4.0.0`).
+  `generate.sh` patches `mops.toml` to add `ic = "4.0.0"` under
+  `[dependencies]` so `mops install` + `mops check` work without
+  additional setup.  Used by `motoko-spotify.yaml`.
 
 ## Current Generated Structure
 
