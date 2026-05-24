@@ -6,5 +6,5 @@ artifactId: spotify-client
 artifactVersion: 0.2.0
 additionalProperties:
   hideGenerationTimestamp: "true"
-  useDfx: false
+  useIcp: true
   artifactRepoUrl: "https://github.com/caffeinelabs/spotify-client"

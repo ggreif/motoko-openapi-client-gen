@@ -33,9 +33,8 @@
 
         devShells.default = pkgs.mkShell {
           buildInputs = (with pkgs; [
-            jdk17
+            openjdk
             maven
-            gradle
             openapi-generator-cli
           ]) ++ [
             spec-merge
