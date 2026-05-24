@@ -2,7 +2,7 @@ generatorName: motoko
 outputDir: samples/client/spotify/motoko/generated
 inputSpec: samples/client/spotify/motoko/specs/spotify-openapi.yml
 artifactId: spotify-client
-artifactVersion: 0.2.1
+artifactVersion: 0.2.2
 additionalProperties:
   hideGenerationTimestamp: "true"
   useIcp: true
@@ -20,7 +20,7 @@ additionalProperties:
     version: 0.2.0
     compatibility:
       mops:
-        spotify-client: "~0.2.1"
+        spotify-client: "~0.2.2"
     ---
 
     # spotify-client

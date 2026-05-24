@@ -1581,6 +1581,19 @@ public class MotokoClientCodegen extends DefaultCodegen implements CodegenConfig
                         // Handle primitive body parameters
                         boolean isPrimitive = isPrimitiveOrMappedType(bodyParam.dataType);
                         bodyParam.vendorExtensions.put("x-body-is-primitive", isPrimitive);
+                        // Per-type flags for the body, parallel to
+                        // x-return-array-element-is-*.  Without these the
+                        // template's primitive-body wrap hardcodes #Text
+                        // and traps on binary uploads (Blob bodies) — and
+                        // would silently mishandle Int/Nat/Float/Bool
+                        // bodies the same way.
+                        String bodyType = bodyParam.dataType;
+                        bodyParam.vendorExtensions.put("x-body-is-text", "Text".equals(bodyType));
+                        bodyParam.vendorExtensions.put("x-body-is-int", "Int".equals(bodyType));
+                        bodyParam.vendorExtensions.put("x-body-is-nat", "Nat".equals(bodyType));
+                        bodyParam.vendorExtensions.put("x-body-is-float", "Float".equals(bodyType));
+                        bodyParam.vendorExtensions.put("x-body-is-bool", "Bool".equals(bodyType));
+                        bodyParam.vendorExtensions.put("x-body-is-blob", "Blob".equals(bodyType));
                     }
 
                     // Collect field names for serde JSON.toText renaming keys.
