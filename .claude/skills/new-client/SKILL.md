@@ -54,33 +54,67 @@ additionalProperties:
 
 ## Step 4 — Create generate.sh
 
-Create `samples/client/<name>/motoko/generate.sh`:
+Create `samples/client/<name>/motoko/generate.sh`. The canonical path is
+the out-of-tree plugin: nixpkgs's vanilla `openapi-generator-cli` JAR plus
+the locally-built `modules/motoko-client-plugin/` JAR on the classpath.
+This bypasses the wrapper's `java -jar` mode (which would block plugin
+loading) and removes the monolithic-fork build from the critical path.
 
 ```bash
 #!/bin/bash
 # Regenerate Motoko client from <Name> API OpenAPI spec
+set -euo pipefail
 
-cd "$(dirname "$0")"
-cd ../../../..  # Go to repo root (samples/client/<name>/motoko → 4 levels up)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
+CONFIG="$REPO_ROOT/bin/configs/motoko-<name>.yaml"
+GENERATED="$SCRIPT_DIR/generated"
+
+cd "$REPO_ROOT"
 
 echo "Generating Motoko client from <Name> API OpenAPI spec..."
-java -jar modules/openapi-generator-cli/target/openapi-generator-cli.jar generate \
-  -c bin/configs/motoko-<name>.yaml
+
+# Use the out-of-tree Motoko plugin against nixpkgs's vanilla
+# openapi-generator-cli JAR.  Override OPENAPI_GENERATOR_JAR /
+# MOTOKO_PLUGIN_JAR if either lives elsewhere on your system.
+OPENAPI_GENERATOR_JAR="${OPENAPI_GENERATOR_JAR:-$(command -v openapi-generator-cli >/dev/null && readlink -f "$(dirname "$(command -v openapi-generator-cli)")/../share/java/openapi-generator-cli.jar")}"
+MOTOKO_PLUGIN_JAR="${MOTOKO_PLUGIN_JAR:-$REPO_ROOT/modules/motoko-client-plugin/target/motoko-client-plugin-1.0.0-SNAPSHOT.jar}"
+
+[ -r "$OPENAPI_GENERATOR_JAR" ] || { echo "openapi-generator-cli.jar not found at $OPENAPI_GENERATOR_JAR"; exit 1; }
+[ -r "$MOTOKO_PLUGIN_JAR" ] || { echo "motoko-client-plugin JAR not found at $MOTOKO_PLUGIN_JAR — run 'nix develop --command mvn -DskipTests package' in modules/motoko-client-plugin/"; exit 1; }
+
+java -cp "$OPENAPI_GENERATOR_JAR:$MOTOKO_PLUGIN_JAR" \
+  org.openapitools.codegen.OpenAPIGenerator generate \
+  -c "$CONFIG"
+
+# SKILL.md emission goes here — see Step 11.
 
 echo "Client generation complete!"
-echo "Generated files in: samples/client/<name>/motoko/generated/"
+echo "Generated files in: $GENERATED/"
 ```
 
 ```bash
 chmod +x samples/client/<name>/motoko/generate.sh
 ```
 
+If the plugin JAR doesn't exist yet, build it inside the devshell
+(`maven` and `openjdk` are pulled in by `flake.nix`, not assumed on the
+host):
+
+```bash
+nix develop --command bash -c '(cd modules/motoko-client-plugin && mvn -DskipTests package)'
+```
+
 ## Step 5 — Generate
 
 ```bash
-java -jar modules/openapi-generator-cli/target/openapi-generator-cli.jar generate \
-  -c bin/configs/motoko-<name>.yaml 2>&1 | tail -5
+nix develop --command bash samples/client/<name>/motoko/generate.sh 2>&1 | tail -10
 ```
+
+The `nix develop` wrapper ensures `openapi-generator-cli` and `openjdk`
+are on PATH from the devshell (matching what the fork pins in
+`flake.nix`). The wrapper isn't needed if you've already entered the
+devshell with bare `nix develop`.
 
 Verify file counts:
 ```bash
@@ -211,7 +245,14 @@ cd samples/client/<name>/motoko && bash typecheck.sh
 Must show: `Summary: N passed, 0 failed` and `✓ mops build OK`.
 Fix any errors before proceeding.
 
-## Step 8 — Create the GitHub repo
+> **Next: Step 8 — Draft the SKILL.md.** The content-authoring guide
+> lives below the `focusApis` section (the file's reference material
+> is kept together). Do Step 8, regenerate (which writes
+> `<generated>/SKILL.md`), then continue here with Step 9. **Skipping
+> Step 8 ships a connector with no skill — don't do that for
+> production clients.**
+
+## Step 9 — Create the GitHub repo
 
 Ask the user to create `caffeinelabs/<name>-client` in the org.
 
@@ -226,7 +267,7 @@ Once created, set the mops homepage:
 gh repo edit caffeinelabs/<name>-client --homepage "https://mops.one/<name>-client"
 ```
 
-## Step 9 — Init git in generated dir and push
+## Step 10 — Init git in generated dir and push
 
 ```bash
 cd samples/client/<name>/motoko/generated
@@ -286,7 +327,7 @@ git push -u origin main
 # git push --force origin main
 ```
 
-## Step 10 — Wire as submodule in parent repo
+## Step 11 — Wire as submodule in parent repo
 
 ```bash
 cd /Users/ggreif/openapi-generator
@@ -408,18 +449,174 @@ Moderations, Files) cover the most common OpenAI use cases. The remaining
 15 APIs (Assistants, Realtime, VectorStores, etc.) and their ~1,000
 exclusive models are pruned away.
 
-## Skill markdown — shipping AI-agent usage notes alongside the client
+## Step 8 — Draft the SKILL.md (research → template → verify)
 
-Clients can ship a top-level `SKILL.md` (alongside `README.md` /
-`mops.toml`) documenting how an LLM/agent should use the generated
-module — auth setup, calling patterns, common pitfalls, Caffeine-
-flavored guidance, anything that isn't already obvious from the type
-signatures. Pattern mirrors `focusApis`: configured in the generator
-YAML, handled by `generate.sh`, invisible to the generator binary.
+Every Caffeine connector ships a top-level `SKILL.md` (alongside
+`README.md` / `mops.toml`) telling the composer **when** to reach for
+the package and **how** to call it from a canister. This is the
+single piece of content that converts the generated bindings from "a
+mops package" into "a Caffeine connector". Do it before the first
+push so v0.1.0 ships with the skill already attached.
 
-### Configuration
+The skill block lives in `bin/configs/motoko-<name>.yaml`; `generate.sh`
+extracts it to `<generated>/SKILL.md` and patches `mops.toml`'s `files
+= [...]` to include it. Mechanics are in **§ Mechanics** below. Author
+the content first.
 
-Two mutually-exclusive forms in `bin/configs/motoko-<name>.yaml`:
+### Research the API (do this **before** drafting)
+
+The skill needs to answer questions the OpenAPI spec doesn't. Spend
+~15 minutes on the API's developer docs and capture the answers:
+
+| Topic | Concrete questions |
+|---|---|
+| **Authentication shape** | Bearer? OAuth 2.0 (which flow)? API key (header/query)? Basic auth? Multiple schemes per operation? |
+| **Token lifecycle** | Static or expiring? If expiring: lifetime, refresh mechanism, what happens at 401? |
+| **Off-chain vs on-chain credential handling** | Where is the token minted? Can the canister hold a client secret safely? Or must the user do an off-chain OAuth dance? |
+| **Idempotency & mutations** | Which endpoints are pure reads vs mutations? Is the mutation idempotent (safe to retry / safe to replicate)? |
+| **Rate limiting** | Are there per-app or per-user limits? Does the API return `Retry-After`? What status code on throttle (429? 503?)? |
+| **Payload sizes** | Largest typical response? Anything that would blow past the IC's 2 MB outcall limit? Pagination convention? |
+| **Sensitive surface** | Anything that must never appear in a query string / log / debug_show? PII fields, tokens, keys? |
+| **Structural quirks** | Discriminator unions? Nullable everywhere? Date formats? Enum value conventions (kebab-case, SCREAMING_SNAKE)? |
+
+Skim sources: the API's `developer.<service>.com/docs` portal, the
+authentication walkthrough page, the rate-limiting page, and the
+`/changelog` or `/release-notes` page. Take notes inline — these become
+the "Notes" section of the skill.
+
+### The Caffeine connector rubric
+
+A skill is useful to the composer only if it answers these six things
+the moment they're loaded. Use this as a checklist when drafting:
+
+1. **When to reach for this package** — what user requests should
+   trigger it vs a manual HTTP outcall?
+2. **`is_replicated` policy per endpoint kind** — `?false` saves ~13×
+   on cycles but loses single-node tamper protection. Reads usually
+   `?false`; mutations usually `null` (replicated). State the rule
+   explicitly so the composer doesn't guess.
+3. **Trigger phrases** — concrete keywords / synonyms that identify a
+   user request as targeting this API (not just the service name).
+4. **Real code example** — function names, parameter shapes, and
+   variant tags must come from the **actual generated code**, not
+   from the spec or from memory. Verify via `grep` (see § Verifying).
+5. **Credential origin & lifetime** — where does the token come from,
+   how long does it live, what does the canister do on expiry?
+6. **The gotchas you only learn by hitting walls** — anything the
+   spec doesn't say. "Mutations are not idempotent — don't replicate."
+   "API returns 200 with empty body on success — handle separately."
+   "IDs are base-62, not URIs — strip prefix before passing."
+
+### Skill-block template
+
+Drop into `bin/configs/motoko-<name>.yaml` under `additionalProperties`
+and fill in. Aim for **80–150 lines** of body — long enough to cover
+the rubric, short enough that the composer reads all of it.
+
+```yaml
+additionalProperties:
+  ...
+  skill: |
+    ---
+    name: extension-<service>-data
+    description: >-
+      Use the `<name>-client` mops package whenever the user asks the
+      canister to <one-line use case — be concrete about what the
+      service does and what kinds of requests should route here>.
+      The package wraps the <Service> API at `<base-url>` via
+      outbound HTTPS calls.
+    version: <artifactVersion>
+    compatibility:
+      mops:
+        <name>-client: "~<artifactVersion>"
+    ---
+
+    # <name>-client
+
+    Motoko bindings for the [<Service> API](<docs-url>), generated
+    from <Service>'s official OpenAPI spec.
+
+    ## Trigger phrases
+
+    Reach for this skill on any request mentioning: <keyword>,
+    <synonym>, <related-concept>, "<verb-phrase>", "<another
+    verb-phrase>", … (cast a wide net — surface forms vary).
+
+    ## How <Service> authentication works (read before wiring)
+
+    <Plain-prose explanation of how a caller gets credentials.
+    Distinguish between flows if there are several — e.g. "Client
+    Credentials = catalog only, Authorization Code = user data".
+    State whether the canister mints tokens or receives them.
+    State token lifetime and refresh policy.>
+
+    ## Usage
+
+    ```motoko
+    // Imports list — copy real paths from generated/src/Apis/*.mo.
+    import <Mod> "mo:<name>-client/Apis/<RealApiFile>";
+    import { defaultConfig } "mo:<name>-client/Config";
+
+    let cfg = {
+      defaultConfig with
+        auth               = ?#bearer "<token from off-chain>";
+        max_response_bytes = ?<budget>;
+        is_replicated      = ?false;       // reads
+    };
+
+    // Real function call — verify the name + parameter order
+    // against generated/src/Apis/<RealApiFile>.mo:
+    let result = await* <Mod>.<realFunctionName>(cfg, <args>);
+    ```
+
+    ## Notes
+
+    - `is_replicated = ?false` is safe for <which reads>. ~13×
+      cheaper. Leave `is_replicated = null` for <which mutations> —
+      consensus replication catches single-node tampering and
+      correctness > cycle savings.
+    - <Rate-limiting policy: 429 + Retry-After? Surface to caller,
+      don't silently retry.>
+    - <Credential storage hygiene: stable var, scope per principal,
+      never log, never return from a query.>
+    - <Cycles budget guidance — what's the typical call cost, when
+      to bump `defaultConfig.cycles`.>
+    - <Any structural surprise — base-62 IDs vs URIs, date formats,
+      empty-200 conventions, discriminator field name, etc.>
+```
+
+The frontmatter `compatibility.mops.<name>-client: "~<version>"` is
+what the composer-side dispatcher uses to gate which package version
+this skill targets. Bump it in lock-step with `artifactVersion`.
+
+### Verifying the skill block
+
+Before committing, every concrete reference in the example code must
+exist in the generated output. This is the most common bug — drafts
+that name a function that the spec describes but the generator
+renamed, or a variant tag that came out as `#snake_case` not
+`#camelCase`.
+
+```bash
+# (1) Every function name must exist in src/Apis/
+grep -E "^[[:space:]]*public func <realFunctionName>" \
+  samples/client/<name>/motoko/generated/src/Apis/*.mo
+
+# (2) Every variant tag must appear in src/Models/<Enum>.mo
+sed -n '/type <EnumName>/,/^[[:space:]]*};/p' \
+  samples/client/<name>/motoko/generated/src/Models/<EnumName>.mo
+
+# (3) mops check passes on the API modules touched by the example
+(cd samples/client/<name>/motoko/generated && \
+  npx ic-mops check src/Apis/<ApiFile>.mo)
+```
+
+If any of these fail, fix the skill text — don't fix the generated
+code (it's the source of truth for what consumers will actually call).
+
+### Mechanics
+
+Two mutually-exclusive forms (only one may be set):
 
 ```yaml
 # (a) Path relative to the YAML's directory; copied verbatim to SKILL.md.
@@ -429,36 +626,23 @@ skillFile: skills/<name>.md
 ```yaml
 # (b) Inline YAML literal block. Indentation is stripped per YAML rules.
 skill: |
-  # Skill name
-  …markdown body…
+  ---
+  name: ...
+  ---
+  ...
 ```
 
-Setting both is an error. Prefer **(a) `skillFile:`** for non-trivial
-content — diff-friendly, lints with normal markdown tooling, easier to
-review. Reserve **(b) inline** for tiny placeholders or quick
-experiments.
+Prefer **(a) `skillFile:`** once the body grows past ~30 lines —
+diff-friendly, lints with normal markdown tooling, easier to review.
+Reserve **(b) inline** for tight content (the spotify-client@0.2.1
+release uses inline at ~110 lines and it's fine).
 
-### How `generate.sh` implements it
-
-After the generator binary runs, the script:
-
-1. Reads `skillFile:` (line) and `skill: |` (literal-block) from the YAML.
-2. Refuses both being set simultaneously.
-3. Whichever is set, writes the body to `<generated>/SKILL.md` (package
-   root, next to `README.md`/`mops.toml`).
-4. Patches the just-emitted `mops.toml`'s `files = [...]` to include
-   `SKILL.md` so `mops publish` ships it. mops auto-includes
-   `README.md`/`LICENSE`/`mops.toml` at root, but anything else must
-   be enumerated explicitly.
-
-Snippet (drop in just after the `java -jar … generate` invocation):
+`generate.sh` does the extraction. The block below is dormant when
+neither key is set, so it's safe to include in every client's
+`generate.sh` ahead of need:
 
 ```bash
 # --- skill / SKILL.md ---
-# Two mutually-exclusive ways to declare the skill in the generator YAML:
-#   skillFile: <path>     (relative to the YAML's directory)
-#   skill: |              (inline YAML literal block)
-#     # ... markdown body ...
 SKILL_FILE=$(grep -E '^[[:space:]]*skillFile:' "$CONFIG" | head -1 | sed 's/^[[:space:]]*skillFile:[[:space:]]*//; s/[[:space:]]*$//' || true)
 SKILL_INLINE=$(awk '
   /^[[:space:]]*skill:[[:space:]]*\|[-+]?[[:space:]]*$/ {
@@ -506,25 +690,19 @@ fi
 > a `grep` that finds zero matches exits 1 and kills the script before
 > the inline-skill path even runs. The fallback suppresses that.
 
-The block is dormant when neither key is set — no harm including it in
-every client's `generate.sh` ahead of need (the WeatherAPI client
-already carries it).
+### Quick reference: existing skills as models
 
-### What goes in SKILL.md
+When in doubt, copy the closest existing skill and adapt it:
 
-Free-form markdown. Suggested sections:
+| Existing client | Auth pattern | Best for |
+|---|---|---|
+| **spotify-client** (icp-cli mode) | OAuth 2.0 Bearer, dual-flow (Client Credentials / Authorization Code w/ PKCE) | Anything with user-scoped + public-catalog endpoints |
+| **weatherapi-client** | Static apiKey | Read-only public APIs with one credential type |
+| **x-client** (twitter) | OAuth 2.0 Bearer + extensive `skills/` blueprint | Mutation-heavy social APIs with rate-limit + nullable-field gotchas |
 
-- **Auth** — how to obtain credentials, how to pass them via `Config`.
-- **Common usage patterns** — typical calling sequences, e.g. "fetch
-  current weather, then forecast" or "search → fetch details".
-- **Caffeine-specific guidance** — when this client should be preferred
-  over manual HTTP calls, project conventions, etc.
-- **Caveats** — rate limits, payload-size quirks, fields that don't
-  round-trip through Candid, etc.
-
-The markdown is shipped as a first-class package file — consumers
-discover it via the same import-time tooling that surfaces other
-documentation.
+After regen the SKILL.md lands at `<generated>/SKILL.md` and
+`mops.toml`'s `files` list includes it — `mops publish` ships it
+automatically.
 
 ## Key Reminders
 
@@ -533,5 +711,6 @@ documentation.
 - **Test import**: Must be a real exported function — check with `grep "^public func"`
 - **Homepage**: Always set `https://mops.one/<name>-client` on the GitHub repo
 - **Spec is in `.gitignore`?** Check — large specs (1MB+) should be committed (they're source)
-- **LICENSE + CODEOWNERS + CHANGELOG**: Caffeine clients must ship Apache-2.0 `LICENSE`, `.github/CODEOWNERS` (`* @caffeinelabs/team-languages`), and a seeded `CHANGELOG.md`. Added in Step 9 — easy to miss on fast pushes. `mops publish` falls back to the GitHub release body when `CHANGELOG.md` is absent (with a warning)
+- **LICENSE + CODEOWNERS + CHANGELOG**: Caffeine clients must ship Apache-2.0 `LICENSE`, `.github/CODEOWNERS` (`* @caffeinelabs/team-languages`), and a seeded `CHANGELOG.md`. Added in Step 10 — easy to miss on fast pushes. `mops publish` falls back to the GitHub release body when `CHANGELOG.md` is absent (with a warning)
+- **SKILL.md is mandatory for production clients** — Step 8 (research → template → verify). A connector without a skill is just a mops package; the skill is what makes it discoverable to the composer
 - After wiring, update `MEMORY.md` with the new client entry
