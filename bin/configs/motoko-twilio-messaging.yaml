@@ -1,7 +1,6 @@
 generatorName: motoko
 outputDir: samples/client/twilio/motoko/generated
 inputSpec: samples/client/twilio/motoko/specs/twilio_messaging.json
-templateDir: modules/openapi-generator/src/main/resources/motoko
 artifactId: twilio-client
 artifactVersion: 0.1.1
 additionalProperties:

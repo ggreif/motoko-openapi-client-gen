@@ -1,7 +1,6 @@
 generatorName: motoko
 outputDir: samples/client/weatherapi/motoko/generated
 inputSpec: samples/client/weatherapi/motoko/specs/weatherapi.json
-templateDir: modules/openapi-generator/src/main/resources/motoko
 artifactId: weatherapi-client
 artifactVersion: 0.1.1
 additionalProperties:

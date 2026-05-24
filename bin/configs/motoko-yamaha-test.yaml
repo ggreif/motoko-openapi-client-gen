@@ -1,7 +1,6 @@
 generatorName: motoko
 outputDir: samples/client/yamaha-musiccast/motoko-test/generated
 inputSpec: yamaha-musiccast-api.yaml
-templateDir: modules/openapi-generator/src/main/resources/motoko
 artifactId: yamaha-musiccast-client
 artifactVersion: 1.0.0
 additionalProperties:

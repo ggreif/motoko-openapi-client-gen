@@ -1,7 +1,6 @@
 generatorName: motoko
 outputDir: samples/client/httpbin-auth/motoko-test/generated
 inputSpec: samples/client/httpbin-auth/motoko-test/specs/httpbin-auth.yaml
-templateDir: modules/openapi-generator/src/main/resources/motoko
 artifactId: httpbin-auth-client
 artifactVersion: 1.0.0
 additionalProperties:

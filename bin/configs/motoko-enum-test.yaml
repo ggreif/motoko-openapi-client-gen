@@ -1,7 +1,6 @@
 generatorName: motoko
 outputDir: samples/client/enum-test/generated
 inputSpec: samples/client/enum-test/specs/enum-test.yaml
-templateDir: modules/openapi-generator/src/main/resources/motoko
 artifactId: enum-test-client
 artifactVersion: 1.0.0
 additionalProperties:

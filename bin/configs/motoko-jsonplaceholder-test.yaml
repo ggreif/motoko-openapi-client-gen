@@ -1,7 +1,6 @@
 generatorName: motoko
 outputDir: samples/client/jsonplaceholder/motoko-test/generated
 inputSpec: samples/client/jsonplaceholder/motoko-test/specs/jsonplaceholder-posts.json
-templateDir: modules/openapi-generator/src/main/resources/motoko
 artifactId: jsonplaceholder-client
 artifactVersion: 1.0.0
 additionalProperties:

@@ -1,7 +1,6 @@
 generatorName: motoko
 outputDir: samples/client/x/motoko/generated
 inputSpec: samples/client/x/motoko/specs/x-openapi.json
-templateDir: modules/openapi-generator/src/main/resources/motoko
 artifactId: x-client
 artifactVersion: 0.2.5
 modelNameMappings:

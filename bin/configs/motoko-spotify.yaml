@@ -1,7 +1,6 @@
 generatorName: motoko
 outputDir: samples/client/spotify/motoko/generated
 inputSpec: samples/client/spotify/motoko/specs/spotify-openapi.yml
-templateDir: modules/openapi-generator/src/main/resources/motoko
 artifactId: spotify-client
 artifactVersion: 0.2.1
 additionalProperties:
