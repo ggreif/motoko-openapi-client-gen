@@ -69,3 +69,64 @@ client refreshes.  Trigger phrases: any user (internal or external)
 asking "can I just download the plugin JAR without building it",
 or any prep for making the repo more discoverable to non-Caffeine
 Motoko developers.
+
+---
+
+TODO: source motoko-client-plugin's openapi-generator dep from the
+nix store, not Maven Central — single source of truth
+
+Today modules/motoko-client-plugin/pom.xml has:
+
+  <dependency>
+    <groupId>org.openapitools</groupId>
+    <artifactId>openapi-generator</artifactId>
+    <version>7.22.0</version>
+    <scope>provided</scope>
+  </dependency>
+
+Maven resolves this from Maven Central.  Meanwhile nixpkgs (via
+flake.nix) already provides the byte-identical 7.22.0 build of
+openapi-generator-cli at ${pkgs.openapi-generator-cli}/share/java/
+openapi-generator-cli.jar.
+
+The duplication means build-time and runtime versions can drift if
+we forget to bump the pom in lockstep with a nixpkgs update.
+Single source of truth would protect against that — a nixpkgs
+bump would automatically become the build dep too.
+
+## Subtlety: library JAR vs all-in-one CLI JAR
+
+Maven Central serves two related artefacts:
+  - org.openapitools:openapi-generator:7.22.0      (library JAR)
+  - org.openapitools:openapi-generator-cli:7.22.0  (assembly JAR
+    bundling library + all transitive deps via maven-shade-plugin)
+
+Our pom depends on the LIBRARY.  Nixpkgs ships only the
+all-in-one CLI assembly (the artefact a user actually invokes).
+So we can't just point Maven at the nix store and call it done —
+we'd need to either:
+
+  (a) Extract/install the library jar from the CLI assembly,
+  (b) Use the CLI assembly directly as the compile dep — depends
+      whether maven-shade-plugin relocated the org.openapitools.
+      codegen.* packages we extend (probably not; those are the
+      API surface), or
+  (c) Add a flake.nix shellHook that mvn install:install-file's
+      the CLI assembly with the library's coordinates (works only
+      if Maven doesn't need a real .pom for transitive deps —
+      <scope>provided</scope> means we don't ship transitives,
+      but mvn compile still needs them to resolve symbols).
+
+(c) is the most plausible if we verify the symbol-resolution
+story.  Or extract the pom from the CLI assembly's META-INF/maven/
+and install both files.
+
+## When to act
+
+After the basic CI is stable (current sprint).  Trigger phrases:
+"nixpkgs bumped openapi-generator-cli to X.Y", "build dep drift",
+or any cycle where someone notices the plugin compiles but the
+runtime CLI rejects a config (a version-skew symptom).
+
+Filed by Gabor on 2026-05-24 while wiring the first plugin-scoped
+CI.
