@@ -81,7 +81,7 @@ for api_file in "$APIS_DIR"/*.mo; do
     KEPT_APIS+=("$api_file")
   else
     rm "$api_file"
-    ((REMOVED_APIS++))
+    ((REMOVED_APIS+=1))  # +=1, not ++, so the post-eval value isn't 0 under set -e
   fi
 done
 echo "  Removed $REMOVED_APIS API files, kept ${#KEPT_APIS[@]}"
@@ -141,7 +141,7 @@ for model_file in "$MODELS_DIR"/*.mo; do
   name=$(basename "$model_file" .mo)
   if ! grep -qx "$name" "$NEEDED_MODELS"; then
     rm "$model_file"
-    ((REMOVED_MODELS++))
+    ((REMOVED_MODELS+=1))  # +=1, not ++, so the post-eval value isn't 0 under set -e
   fi
 done
 rm "$NEEDED_MODELS"
