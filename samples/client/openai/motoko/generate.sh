@@ -12,12 +12,25 @@ GENERATED="$SCRIPT_DIR/generated"
 cd "$REPO_ROOT"
 
 echo "Generating Motoko client from OpenAI API OpenAPI spec..."
-java -jar modules/openapi-generator-cli/target/openapi-generator-cli.jar generate \
+
+# Use the out-of-tree Motoko plugin against nixpkgs's vanilla
+# openapi-generator-cli JAR.  Override OPENAPI_GENERATOR_JAR /
+# MOTOKO_PLUGIN_JAR if either lives elsewhere on your system.
+OPENAPI_GENERATOR_JAR="${OPENAPI_GENERATOR_JAR:-$(command -v openapi-generator-cli >/dev/null && readlink -f "$(dirname "$(command -v openapi-generator-cli)")/../share/java/openapi-generator-cli.jar")}"
+MOTOKO_PLUGIN_JAR="${MOTOKO_PLUGIN_JAR:-$REPO_ROOT/modules/motoko-client-plugin/target/motoko-client-plugin-1.0.0-SNAPSHOT.jar}"
+
+[ -r "$OPENAPI_GENERATOR_JAR" ] || { echo "openapi-generator-cli.jar not found at $OPENAPI_GENERATOR_JAR"; exit 1; }
+[ -r "$MOTOKO_PLUGIN_JAR" ] || { echo "motoko-client-plugin JAR not found at $MOTOKO_PLUGIN_JAR — run 'nix develop --command mvn -DskipTests package' in modules/motoko-client-plugin/"; exit 1; }
+
+java -cp "$OPENAPI_GENERATOR_JAR:$MOTOKO_PLUGIN_JAR" \
+  org.openapitools.codegen.OpenAPIGenerator generate \
   -c "$CONFIG" --skip-validate-spec
 
 # --- fix HTML entities that leak from spec descriptions into code ---
+# Portable sed -i: write to .bak then drop it (macOS + Linux).
 find "$GENERATED/src" -name '*.mo' -exec \
-  sed -i '' -e 's/&lt;/</g' -e 's/&gt;/>/g' -e 's/&amp;/\&/g' {} +
+  sed -i.bak -e 's/&lt;/</g' -e 's/&gt;/>/g' -e 's/&amp;/\&/g' {} +
+find "$GENERATED/src" -name '*.mo.bak' -delete
 
 # --- focusApis pruning ---
 # Parse focusApis from the YAML config.  Accepts either top-level or nested
