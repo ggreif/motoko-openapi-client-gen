@@ -1,0 +1,108 @@
+name: motoko
+
+on:
+  push:
+    branches: [master]
+    tags: ['v*']
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  plugin:
+    name: build plugin + regen + mops check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v27
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Setup Node (for npx ic-mops)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build motoko-client-plugin JAR
+        run: |
+          nix develop --command bash -c '(cd modules/motoko-client-plugin && mvn -DskipTests -B package)'
+          ls -la modules/motoko-client-plugin/target/motoko-client-plugin-*.jar
+
+      - name: Regenerate every motoko-* client + mops check
+        run: |
+          set -euo pipefail
+          fail=0
+          for cfg in bin/configs/motoko-*.yaml; do
+            name=$(basename "$cfg" .yaml | sed 's|^motoko-||')
+            outdir=$(grep '^outputDir:' "$cfg" | awk '{print $2}')
+            client_dir=$(dirname "$outdir")
+            gen_sh="$client_dir/generate.sh"
+
+            if [ ! -x "$gen_sh" ]; then
+              echo "::notice ::no generate.sh for $name — skipping"
+              continue
+            fi
+
+            echo "::group::$name — regen"
+            nix develop --command bash "$gen_sh"
+            echo "::endgroup::"
+
+            if [ -f "$outdir/mops.toml" ]; then
+              echo "::group::$name — mops check"
+              if ! ( cd "$outdir" && \
+                     npx --yes ic-mops install && \
+                     npx --yes ic-mops check $(find src -name '*.mo' | head -200) ); then
+                echo "::error ::$name failed mops check"
+                fail=$((fail + 1))
+              fi
+              echo "::endgroup::"
+            fi
+          done
+          if [ $fail -gt 0 ]; then
+            echo "::error ::$fail client(s) failed"
+            exit 1
+          fi
+
+      - name: Upload plugin JAR as workflow artefact
+        uses: actions/upload-artifact@v4
+        with:
+          name: motoko-client-plugin-jar
+          path: modules/motoko-client-plugin/target/motoko-client-plugin-*.jar
+          retention-days: 14
+
+  release:
+    name: publish plugin JAR to GitHub Release
+    needs: plugin
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: cachix/install-nix-action@v27
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Build plugin JAR
+        run: |
+          nix develop --command bash -c '(cd modules/motoko-client-plugin && mvn -DskipTests -B package)'
+
+      - name: Rename JAR with tag for upload
+        run: |
+          tag=${GITHUB_REF_NAME}
+          cp modules/motoko-client-plugin/target/motoko-client-plugin-1.0.0-SNAPSHOT.jar \
+             motoko-client-plugin-${tag}.jar
+
+      - name: Publish to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: motoko-client-plugin-*.jar
+          fail_on_unmatched_files: true
