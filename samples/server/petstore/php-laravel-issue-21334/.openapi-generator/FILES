@@ -1,9 +1,0 @@
-.gitignore
-Api/DefaultApiInterface.php
-Http/Controllers/DefaultController.php
-Model/NoContent200.php
-Model/SampleModelToTestNamingConvention.php
-README.md
-composer.json
-phpunit.xml.dist
-routes.php
