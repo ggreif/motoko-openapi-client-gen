@@ -1516,6 +1516,17 @@ public class MotokoClientCodegen extends DefaultCodegen implements CodegenConfig
                     // Check if array element type is a primitive/mapped type
                     boolean isElementPrimitive = isPrimitiveOrMappedType(op.returnBaseType);
                     op.vendorExtensions.put("x-return-array-element-is-primitive", isElementPrimitive);
+                    // Per-type flags for the array element, mirroring the map-value
+                    // ones below.  Without these the template's primitive-array
+                    // decode hardcodes `#Text` and silently mishandles
+                    // [Bool] / [Int] / [Float] / [Blob].
+                    String elementType = op.returnBaseType;
+                    op.vendorExtensions.put("x-return-array-element-is-text", "Text".equals(elementType));
+                    op.vendorExtensions.put("x-return-array-element-is-int", "Int".equals(elementType));
+                    op.vendorExtensions.put("x-return-array-element-is-nat", "Nat".equals(elementType));
+                    op.vendorExtensions.put("x-return-array-element-is-float", "Float".equals(elementType));
+                    op.vendorExtensions.put("x-return-array-element-is-bool", "Bool".equals(elementType));
+                    op.vendorExtensions.put("x-return-array-element-is-blob", "Blob".equals(elementType));
                 }
 
                 // Mark operations with primitive/mapped return types (non-model types)
