@@ -1,4 +1,0 @@
-            // {{{operationId}}} - {{{httpMethod}}} {{{path}}}
-            hyper::Method::{{exts.x-http-method}} if path.matched(paths::ID_{{exts.x-path-id}}) => {
-                handle_{{#exts}}{{{x-operation-id}}}{{/exts}}(api_impl, uri, headers, body, context, validation{{#apiUsesMultipartFormData}}, multipart_form_size_limit{{/apiUsesMultipartFormData}}).await
-            },

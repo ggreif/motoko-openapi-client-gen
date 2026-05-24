@@ -1,7 +1,0 @@
-    @{{httpMethod}}{{#subresourceOperation}}
-    @Path("{{{path}}}"){{/subresourceOperation}}{{#hasConsumes}}
-    @Consumes({{#consumes}}"{{{mediaType}}}"{{^-last}}, {{/-last}}{{/consumes}}){{/hasConsumes}}{{#hasProduces}}
-    @Produces({{#produces}}"{{{mediaType}}}"{{^-last}}, {{/-last}}{{/produces}}){{/hasProduces}}
-    {{#useCoroutines}}suspend {{/useCoroutines}}fun {{nickname}}({{#allParams}}{{>queryParams}}{{>pathParams}}{{>cookieParams}}{{>headerParams}}{{>bodyParams}}{{>formParams}}{{^-last}},{{/-last}}{{/allParams}}): Response {
-        return Response.ok().entity("magic!").build();
-    }
