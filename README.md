@@ -47,6 +47,44 @@ together on the classpath, runs the generator, then post-processes
 the output (extracts the `skill: |` block into `SKILL.md`, patches
 `mops.toml`'s `files` list, etc.).
 
+## Without Nix
+
+If you'd rather use a system-installed toolchain than the flake's
+devshell:
+
+**Prerequisites:**
+- OpenJDK 17 or newer
+- Maven 3.6+
+- `openapi-generator-cli` ≥ 7.22 (Homebrew, sdkman, manual JAR, …)
+
+Build the plugin:
+
+```bash
+(cd modules/motoko-client-plugin && mvn -DskipTests package)
+```
+
+Run a client's `generate.sh`:
+
+```bash
+samples/client/spotify/motoko/generate.sh
+```
+
+The script auto-resolves the upstream JAR via
+`command -v openapi-generator-cli`, following the `bin/` ↔
+`share/java/openapi-generator-cli.jar` convention nixpkgs / Homebrew /
+sdkman all use. If your install lives elsewhere, set
+`OPENAPI_GENERATOR_JAR` explicitly:
+
+```bash
+OPENAPI_GENERATOR_JAR=/path/to/openapi-generator-cli.jar \
+  samples/client/spotify/motoko/generate.sh
+```
+
+The plugin's source pins compatibility against `openapi-generator`
+7.22.x. Newer minor versions usually work; major-version drift may
+need a refresh of `MotokoClientCodegen`'s overrides against the new
+base class.
+
 ## Add a new client
 
 See [`.claude/skills/new-client/SKILL.md`](.claude/skills/new-client/SKILL.md) — covers
