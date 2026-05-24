@@ -1,0 +1,41 @@
+TODO: design a plugin-scoped CI for ggreif/openapi-generator
+
+Context: on 2026-05-24, before pushing the spotify-client@0.2.1 bump
+(this commit), all 103 GitHub Actions workflows on the fork were
+bulk-disabled via `gh workflow disable` because the upstream sample
+matrix (~100 language clients we don't touch: Dart / C# / Crystal /
+Kotlin / Rust / …) fires on every push to master and floods the user
+with email.  Restore one-liner saved at the time:
+
+  jq -r '.[] | select(.state == "active") | .id' /tmp/wf-before.json \
+    | xargs -I{} gh workflow enable {} --repo ggreif/openapi-generator
+
+(/tmp/ is volatile; if needed, regenerate the active-ID list from the
+last green run history or the .github/workflows/ directory.)
+
+Long-term vision: replace the upstream sample matrix with a small,
+plugin-scoped CI that exercises only what this fork actually owns —
+
+  1. Build modules/motoko-client-plugin/ (mvn -DskipTests package).
+  2. Regen + byte-diff a canonical config matrix:
+       - motoko-petstore-new      (vanilla mode)
+       - motoko-weatherapi        (icp-cli + SKILL.md)
+       - motoko-twilio            (dfx mode)
+       - motoko-spotify           (icp-cli + SKILL.md + array decode)
+     Each should byte-match its corresponding samples/client/.../motoko/
+     submodule HEAD; non-empty diff fails the run.
+  3. `mops check` the regenerated output of each (currently only
+     spotify is in this branch and clean under moc 1.4.1).
+  4. Optional: motoko-client-plugin's own unit tests
+     (MotokoClientCodegen{,Model,Options}Test.java) if/when we move
+     them out of modules/openapi-generator/ into the plugin tree.
+
+Implementation sketch: one .github/workflows/motoko.yaml with a
+matrix strategy over the four configs.  Keep the 103 upstream
+workflows disabled.  Don't bother re-enabling them piecemeal — none
+of them know about modules/motoko-client-plugin/, and the JVM /
+Maven / Docker / 50-language sample sweeps are pure noise for this
+fork's scope.
+
+Trigger phrases / when to act: the next time we touch the plugin or
+add a new client config and want CI-as-gate rather than CI-as-mute.
