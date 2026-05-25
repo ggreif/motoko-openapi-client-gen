@@ -2,8 +2,170 @@ generatorName: motoko
 outputDir: samples/client/tmdb/motoko/generated
 inputSpec: samples/client/tmdb/motoko/specs/tmdb-api.json
 artifactId: tmdb-client
-artifactVersion: 0.1.0
+artifactVersion: 0.1.2
 additionalProperties:
   hideGenerationTimestamp: "true"
-  useDfx: false
+  useIcp: true
+  diagnostics: true
   artifactRepoUrl: "https://github.com/caffeinelabs/tmdb-client"
+  # Custom: generate.sh pre-processes the spec to keep only paths whose
+  # operationId prefix matches one of the entries below.  Drops ~25
+  # niche/admin ops (watch, guest, company, collection, changes,
+  # keyword, genre, credit, find, review, network, certifications,
+  # translations, …) so the generated surface stays digestible.
+  # Remove this block to keep all 152 operations.
+  focusApis:
+    - tv
+    - movie
+    - account
+    - person
+    - search
+    - list
+    - lists
+    - authentication
+    - configuration
+    - trending
+    - discover
+  skill: |
+    ---
+    name: extension-tmdb-data
+    description: >-
+      Use the `tmdb-client` mops package whenever the user asks the
+      canister to look up movies, TV shows, people, companies,
+      collections, or keywords in The Movie Database catalog;
+      surface trending / discover / now-playing / upcoming lists;
+      search across the catalog; or interact with a user's TMDb
+      account (favorites, ratings, watchlist, custom lists). The
+      package wraps the TMDb Web API v3 at
+      `https://api.themoviedb.org/3` via outbound HTTPS calls.
+    version: 0.1.2
+    compatibility:
+      mops:
+        tmdb-client: "~0.1.2"
+    ---
+    
+    # tmdb-client
+    
+    Motoko bindings for [The Movie Database (TMDb) API](https://developer.themoviedb.org/),
+    generated from the OpenAPI v3 spec.  304 operations, ~850 model
+    modules — covers movies, TV series, people, companies,
+    collections, keywords, networks, genres, certifications,
+    trending, discover, search, account, lists, and watch providers.
+    
+    ## Trigger phrases
+    
+    Reach for this skill on any request mentioning: movie, film, TV
+    show, series, episode, season, actor, actress, director, cast,
+    crew, genre, "now playing", "coming soon", upcoming, popular,
+    top-rated, trending, discover, recommendations, similar,
+    keywords, "watch provider", streaming, "where to watch",
+    review, rating, watchlist, favorite, TMDb, "The Movie Database".
+    
+    ## How TMDb authentication works (read before wiring)
+    
+    Every TMDb call needs an API credential. There are two flavours
+    and you can use either:
+    
+    1. **v3 API Key** — a 32-char hex string from
+       https://www.themoviedb.org/settings/api. The generator
+       template surfaces this as `Config.auth = ?#apiKey "..."` and
+       sends it as a query string `?api_key=...`. Simple, works
+       everywhere.
+    
+    2. **v4 Read-Access Token** — a JWT issued by the same settings
+       page (separate from the v3 key). Surface as
+       `Config.auth = ?#bearer "..."`; sent as
+       `Authorization: Bearer <jwt>`. Required if you ever plan to
+       move to v4 endpoints; works on every v3 endpoint too.
+    
+    Both credentials are minted off-chain on themoviedb.org and
+    pasted into a stable variable on the canister. There is no
+    OAuth flow for the read surface — credentials are static and do
+    not expire.
+    
+    User-scoped account endpoints (`accountAddFavorite`,
+    `accountGetFavorites`, `accountLists`, `listAdd*`, `ratingMovie`,
+    …) additionally require a `sessionId : Text` argument. Sessions
+    are obtained via a separate browser-redirect flow on
+    `themoviedb.org/authenticate` and persist until revoked — the
+    canister stores them per-caller, never logs them.
+    
+    ## Usage
+    
+    ```motoko
+    import Tmdb "mo:tmdb-client/Apis/DefaultApi";
+    import { defaultConfig } "mo:tmdb-client/Config";
+    
+    // Read-only catalog: v3 API key is fine, is_replicated = ?false
+    let cfg = {
+      defaultConfig with
+        auth               = ?#apiKey "32-hex-chars-from-tmdb-settings";
+        max_response_bytes = ?200_000;     // discover/search payloads
+        is_replicated      = ?false;
+    };
+    
+    // 1. Multi-search (movies + TV + people in one call)
+    let hits = await* Tmdb.searchMulti(cfg,
+      "Blade Runner",  // query_
+      false,           // includeAdult
+      "en-US",         // language
+      1                // page (1-indexed)
+    );
+    
+    // 2. Movie details by TMDb integer ID
+    let movie = await* Tmdb.movieDetails(cfg,
+      78,              // movieId (Blade Runner)
+      "",              // appendToResponse (e.g. "credits,images")
+      "en-US"          // language
+    );
+    
+    // 3. "Now playing in cinemas" feed
+    let playing = await* Tmdb.movieNowPlayingList(cfg,
+      "en-US",         // language
+      1,               // page
+      "US"             // region_
+    );
+    
+    // 4. User mutation: add a favorite (needs session)
+    let userCfg = { cfg with is_replicated = null };  // consensus
+    let _ = await* Tmdb.accountAddFavorite(userCfg,
+      accountId,
+      sessionId,
+      { mediaType = "movie"; mediaId = 78; favorite = true }
+    );
+    ```
+    
+    Sort-by parameters are typed variants — pick from the generated
+    `*SortByParameter` modules (e.g.
+    `#created_at_desc` for `AccountGetFavoritesSortByParameter`).
+    Don't pass arbitrary strings.
+    
+    ## Notes
+    
+    - `is_replicated = ?false` is safe for **all** catalog reads
+      (search*, movie*, tvSeries*, person*, discover*, trending,
+      genres*, certifications*, configuration). ~13× cheaper.
+    - For **mutations** (`accountAddFavorite`, `accountAddToWatchlist`,
+      `movieAddRating`, `listAddMovie`, list create/delete) leave
+      `is_replicated = null` — these write to the user's TMDb
+      account and consensus replication guards against single-node
+      tampering.
+    - **Rate limit**: 50 requests per second per IP. TMDb does not
+      currently return `Retry-After`; if you see 429, back off and
+      retry after ≥1 second. Don't hammer behind a tight loop.
+    - **Pagination**: 1-indexed `page` query param, 20 items per
+      page, hard ceiling of 500 pages (`page > 500` returns 422).
+    - **IDs are integers**, not strings — `movieId`, `tvSeriesId`,
+      `personId`, `accountId` are all `Int` in the generated
+      signatures. Coerce strings before calling.
+    - **Image URLs are relative**: catalog items carry `poster_path`
+      / `backdrop_path` like `/abc123.jpg`. Prepend the base from
+      `configurationDetails` (cached client-side; changes rarely)
+      to render: `https://image.tmdb.org/t/p/w500/abc123.jpg`.
+    - **`appendToResponse`** on movieDetails / tvSeriesDetails
+      embeds multiple sub-resources in a single call
+      (`"credits,images,videos,similar,recommendations"`). Cheaper
+      than separate outcalls.
+    - Treat both `#apiKey` and `#bearer` tokens as secrets. Stable
+      var, scope per-caller principal, never log, never return from
+      a query method.
