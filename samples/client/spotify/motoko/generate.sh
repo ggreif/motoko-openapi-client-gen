@@ -24,21 +24,6 @@ java -cp "$OPENAPI_GENERATOR_JAR:$MOTOKO_PLUGIN_JAR" \
   org.openapitools.codegen.OpenAPIGenerator generate \
   -c "$CONFIG"
 
-# --- mops.toml: add `ic` package ---
-# icp-cli-mode clients pull management canister bindings (aaaaa-aa)
-# from the `ic` mops package via `mo:ic/Types`.  The mustache
-# template's [dependencies] block doesn't include it yet (back-port
-# when it does), so patch in a single line under the [dependencies]
-# header.
-MOPS_TOML="$GENERATED/mops.toml"
-if [ -r "$MOPS_TOML" ] && ! grep -qE '^ic[[:space:]]*=' "$MOPS_TOML"; then
-  awk '
-    /^\[dependencies\][[:space:]]*$/ { print; print "ic = \"4.0.0\""; next }
-    { print }
-  ' "$MOPS_TOML" > "$MOPS_TOML.new" && mv "$MOPS_TOML.new" "$MOPS_TOML"
-  echo "mops.toml: added 'ic = \"4.0.0\"' to [dependencies] (icp-cli mode: mo:ic bindings for aaaaa-aa)"
-fi
-
 # --- skill / SKILL.md ---
 # Two mutually-exclusive ways to declare the skill in the generator YAML:
 #   skillFile: <path>     (relative to the YAML's directory)
