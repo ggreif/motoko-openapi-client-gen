@@ -1,30 +1,32 @@
+import { Candid } "mo:serde-core";
+import Array "mo:core/Array";
+import List "mo:core/List";
+import Float "mo:core/Float";
+import Runtime "mo:core/Runtime";
 
 // SetTunerFreqTuningParameter.mo
 /// Enum values: #direct
 
 module {
-    // User-facing type: type-safe variants for application code
     public type SetTunerFreqTuningParameter = {
         #direct;
     };
 
-    // JSON sub-module: everything needed for JSON serialization
     public module JSON {
-        // JSON-facing Motoko type: mirrors JSON structure
-        // Named "JSON" to avoid shadowing the outer SetTunerFreqTuningParameter type
-        public type JSON = Text;
+        public func toCandidValue(value : SetTunerFreqTuningParameter) : Candid.Candid =
+            switch (value) {
+                case (#direct) #Text("direct");
+            };
 
-        // Convert User-facing type to JSON-facing Motoko type
-        public func toJSON(value : SetTunerFreqTuningParameter) : JSON =
+        public func fromCandidValue(candid : Candid.Candid) : ?SetTunerFreqTuningParameter =
+            switch (candid) {
+                case (#Text("direct")) ?#direct;
+                case _ null;
+            };
+
+        public func toText(value : SetTunerFreqTuningParameter) : Text =
             switch (value) {
                 case (#direct) "direct";
             };
-
-        // Convert JSON-facing Motoko type to User-facing type
-        public func fromJSON(json : JSON) : ?SetTunerFreqTuningParameter =
-            switch (json) {
-                case "direct" ?#direct;
-                case _ null;
-            };
-    }
-}
+    };
+};

@@ -1,36 +1,40 @@
+import { Candid } "mo:serde-core";
+import Array "mo:core/Array";
+import List "mo:core/List";
+import Float "mo:core/Float";
+import Runtime "mo:core/Runtime";
 
 // SetPowerPowerParameter.mo
 /// Enum values: #true_, #standby, #toggle
 
 module {
-    // User-facing type: type-safe variants for application code
     public type SetPowerPowerParameter = {
         #true_;
         #standby;
         #toggle;
     };
 
-    // JSON sub-module: everything needed for JSON serialization
     public module JSON {
-        // JSON-facing Motoko type: mirrors JSON structure
-        // Named "JSON" to avoid shadowing the outer SetPowerPowerParameter type
-        public type JSON = Text;
+        public func toCandidValue(value : SetPowerPowerParameter) : Candid.Candid =
+            switch (value) {
+                case (#true_) #Text("true");
+                case (#standby) #Text("standby");
+                case (#toggle) #Text("toggle");
+            };
 
-        // Convert User-facing type to JSON-facing Motoko type
-        public func toJSON(value : SetPowerPowerParameter) : JSON =
+        public func fromCandidValue(candid : Candid.Candid) : ?SetPowerPowerParameter =
+            switch (candid) {
+                case (#Text("true")) ?#true_;
+                case (#Text("standby")) ?#standby;
+                case (#Text("toggle")) ?#toggle;
+                case _ null;
+            };
+
+        public func toText(value : SetPowerPowerParameter) : Text =
             switch (value) {
                 case (#true_) "true";
                 case (#standby) "standby";
                 case (#toggle) "toggle";
             };
-
-        // Convert JSON-facing Motoko type to User-facing type
-        public func fromJSON(json : JSON) : ?SetPowerPowerParameter =
-            switch (json) {
-                case "true" ?#true_;
-                case "standby" ?#standby;
-                case "toggle" ?#toggle;
-                case _ null;
-            };
-    }
-}
+    };
+};

@@ -1,33 +1,36 @@
+import { Candid } "mo:serde-core";
+import Array "mo:core/Array";
+import List "mo:core/List";
+import Float "mo:core/Float";
+import Runtime "mo:core/Runtime";
 
 // SetInputModeParameter.mo
 /// Enum values: #autoplay, #autoplay_disabled
 
 module {
-    // User-facing type: type-safe variants for application code
     public type SetInputModeParameter = {
         #autoplay;
         #autoplay_disabled;
     };
 
-    // JSON sub-module: everything needed for JSON serialization
     public module JSON {
-        // JSON-facing Motoko type: mirrors JSON structure
-        // Named "JSON" to avoid shadowing the outer SetInputModeParameter type
-        public type JSON = Text;
+        public func toCandidValue(value : SetInputModeParameter) : Candid.Candid =
+            switch (value) {
+                case (#autoplay) #Text("autoplay");
+                case (#autoplay_disabled) #Text("autoplay_disabled");
+            };
 
-        // Convert User-facing type to JSON-facing Motoko type
-        public func toJSON(value : SetInputModeParameter) : JSON =
+        public func fromCandidValue(candid : Candid.Candid) : ?SetInputModeParameter =
+            switch (candid) {
+                case (#Text("autoplay")) ?#autoplay;
+                case (#Text("autoplay_disabled")) ?#autoplay_disabled;
+                case _ null;
+            };
+
+        public func toText(value : SetInputModeParameter) : Text =
             switch (value) {
                 case (#autoplay) "autoplay";
                 case (#autoplay_disabled) "autoplay_disabled";
             };
-
-        // Convert JSON-facing Motoko type to User-facing type
-        public func fromJSON(json : JSON) : ?SetInputModeParameter =
-            switch (json) {
-                case "autoplay" ?#autoplay;
-                case "autoplay_disabled" ?#autoplay_disabled;
-                case _ null;
-            };
-    }
-}
+    };
+};

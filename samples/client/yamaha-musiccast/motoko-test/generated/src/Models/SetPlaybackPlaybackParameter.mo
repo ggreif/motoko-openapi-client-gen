@@ -1,9 +1,13 @@
+import { Candid } "mo:serde-core";
+import Array "mo:core/Array";
+import List "mo:core/List";
+import Float "mo:core/Float";
+import Runtime "mo:core/Runtime";
 
 // SetPlaybackPlaybackParameter.mo
 /// Enum values: #stop, #play, #pause, #previous, #next, #fast_reverse_start, #fast_reverse_end, #fast_forward_start, #fast_forward_end
 
 module {
-    // User-facing type: type-safe variants for application code
     public type SetPlaybackPlaybackParameter = {
         #stop;
         #play;
@@ -16,14 +20,35 @@ module {
         #fast_forward_end;
     };
 
-    // JSON sub-module: everything needed for JSON serialization
     public module JSON {
-        // JSON-facing Motoko type: mirrors JSON structure
-        // Named "JSON" to avoid shadowing the outer SetPlaybackPlaybackParameter type
-        public type JSON = Text;
+        public func toCandidValue(value : SetPlaybackPlaybackParameter) : Candid.Candid =
+            switch (value) {
+                case (#stop) #Text("stop");
+                case (#play) #Text("play");
+                case (#pause) #Text("pause");
+                case (#previous) #Text("previous");
+                case (#next) #Text("next");
+                case (#fast_reverse_start) #Text("fast_reverse_start");
+                case (#fast_reverse_end) #Text("fast_reverse_end");
+                case (#fast_forward_start) #Text("fast_forward_start");
+                case (#fast_forward_end) #Text("fast_forward_end");
+            };
 
-        // Convert User-facing type to JSON-facing Motoko type
-        public func toJSON(value : SetPlaybackPlaybackParameter) : JSON =
+        public func fromCandidValue(candid : Candid.Candid) : ?SetPlaybackPlaybackParameter =
+            switch (candid) {
+                case (#Text("stop")) ?#stop;
+                case (#Text("play")) ?#play;
+                case (#Text("pause")) ?#pause;
+                case (#Text("previous")) ?#previous;
+                case (#Text("next")) ?#next;
+                case (#Text("fast_reverse_start")) ?#fast_reverse_start;
+                case (#Text("fast_reverse_end")) ?#fast_reverse_end;
+                case (#Text("fast_forward_start")) ?#fast_forward_start;
+                case (#Text("fast_forward_end")) ?#fast_forward_end;
+                case _ null;
+            };
+
+        public func toText(value : SetPlaybackPlaybackParameter) : Text =
             switch (value) {
                 case (#stop) "stop";
                 case (#play) "play";
@@ -35,20 +60,5 @@ module {
                 case (#fast_forward_start) "fast_forward_start";
                 case (#fast_forward_end) "fast_forward_end";
             };
-
-        // Convert JSON-facing Motoko type to User-facing type
-        public func fromJSON(json : JSON) : ?SetPlaybackPlaybackParameter =
-            switch (json) {
-                case "stop" ?#stop;
-                case "play" ?#play;
-                case "pause" ?#pause;
-                case "previous" ?#previous;
-                case "next" ?#next;
-                case "fast_reverse_start" ?#fast_reverse_start;
-                case "fast_reverse_end" ?#fast_reverse_end;
-                case "fast_forward_start" ?#fast_forward_start;
-                case "fast_forward_end" ?#fast_forward_end;
-                case _ null;
-            };
-    }
-}
+    };
+};

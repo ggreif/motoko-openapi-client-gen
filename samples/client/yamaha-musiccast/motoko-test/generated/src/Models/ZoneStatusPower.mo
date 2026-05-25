@@ -1,33 +1,36 @@
+import { Candid } "mo:serde-core";
+import Array "mo:core/Array";
+import List "mo:core/List";
+import Float "mo:core/Float";
+import Runtime "mo:core/Runtime";
 
 // ZoneStatusPower.mo
 /// Enum values: #true_, #standby
 
 module {
-    // User-facing type: type-safe variants for application code
     public type ZoneStatusPower = {
         #true_;
         #standby;
     };
 
-    // JSON sub-module: everything needed for JSON serialization
     public module JSON {
-        // JSON-facing Motoko type: mirrors JSON structure
-        // Named "JSON" to avoid shadowing the outer ZoneStatusPower type
-        public type JSON = Text;
+        public func toCandidValue(value : ZoneStatusPower) : Candid.Candid =
+            switch (value) {
+                case (#true_) #Text("true");
+                case (#standby) #Text("standby");
+            };
 
-        // Convert User-facing type to JSON-facing Motoko type
-        public func toJSON(value : ZoneStatusPower) : JSON =
+        public func fromCandidValue(candid : Candid.Candid) : ?ZoneStatusPower =
+            switch (candid) {
+                case (#Text("true")) ?#true_;
+                case (#Text("standby")) ?#standby;
+                case _ null;
+            };
+
+        public func toText(value : ZoneStatusPower) : Text =
             switch (value) {
                 case (#true_) "true";
                 case (#standby) "standby";
             };
-
-        // Convert JSON-facing Motoko type to User-facing type
-        public func fromJSON(json : JSON) : ?ZoneStatusPower =
-            switch (json) {
-                case "true" ?#true_;
-                case "standby" ?#standby;
-                case _ null;
-            };
-    }
-}
+    };
+};

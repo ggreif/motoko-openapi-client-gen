@@ -2,15 +2,15 @@
 
 import Text "mo:core/Text";
 import Int "mo:core/Int";
+import Nat "mo:core/Nat";
+import Iter "mo:core/Iter";
 import Blob "mo:core/Blob";
 import Array "mo:core/Array";
+import List "mo:core/List";
 import Error "mo:core/Error";
 import Base64 "mo:core/Base64";
 import { JSON; Candid } "mo:serde-core";
-// FIXME: destructuring on `actor` types is not implemented yet for shared functions
-//        type error [M0114], object pattern cannot consume actor type
-import { type http_request_args; type http_request_result; type http_header } "ic:aaaaa-aa";
-import Mgnt__ = "ic:aaaaa-aa";
+import { type HttpRequestArgs; type HttpRequestResult; type HttpHeader } "mo:ic/Types";
 import { type SetInputInputParameter; JSON = SetInputInputParameter } "../Models/SetInputInputParameter";
 import { type SetInputModeParameter; JSON = SetInputModeParameter } "../Models/SetInputModeParameter";
 import { type SetVolumeVolumeParameter; JSON = SetVolumeVolumeParameter } "../Models/SetVolumeVolumeParameter";
@@ -18,13 +18,16 @@ import { type ZoneStatus; JSON = ZoneStatus } "../Models/ZoneStatus";
 import { type Config } "../Config";
 
 module {
-    let http_request = Mgnt__.http_request;
+    let http_request = (actor "aaaaa-aa" : actor { http_request : (HttpRequestArgs) -> async HttpRequestResult }).http_request;
 
 
     /// Get sound program list
     ///
     /// Returns the list of available sound programs for the zone
     public func getSoundProgramList(config : Config, zone : Text) : async* Any {
+        // x-server-override (set by spec-merge per input) pins this
+        // operation to the right host for multi-spec merged clients;
+        // when absent we use config.baseUrl as before.
         let {baseUrl; cycles} = config;
         let baseUrl__ = baseUrl # "/{zone}/getSoundProgramList"
             |> Text.replace(_, #text "{zone}", zone);
@@ -54,12 +57,12 @@ module {
             case null [];
         };
 
-        let headers = Array.flatten<http_header>([
+        let headers = Array.flatten<HttpHeader>([
             baseHeaders,
             authHeaders
         ]);
 
-        let request : http_request_args = { config with
+        let request : HttpRequestArgs = { config with
             url;
             method = #get;
             headers;
@@ -67,7 +70,7 @@ module {
         };
 
         // Call the management canister's http_request method with cycles
-        let response : http_request_result = await (with cycles) http_request(request);
+        let response : HttpRequestResult = await (with cycles) http_request(request);
 
         // Check HTTP status code before parsing
         if (response.status >= 200 and response.status < 300) {
@@ -76,14 +79,13 @@ module {
                 case (?text) text;
                 case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to decode response body as UTF-8");
             }) |>
-            (switch (JSON.fromText(_, null)) {
-                case (#ok(blob)) blob;
+            (switch (JSON.toCandid(_)) {
+                case (#ok(c__)) c__;
                 case (#err(msg)) throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to parse JSON: " # msg);
             }) |>
-            from_candid(_) : ?Any |>
             (switch (_) {
-                case (?result) result;
-                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response");
+                case (#Int(i__)) i__;
+                case _ throw Error.reject("HTTP " # Int.toText(response.status) # ": Unexpected primitive shape");
             })
         } else {
             // Error response (4xx, 5xx): parse error models and throw
@@ -103,6 +105,9 @@ module {
     ///
     /// Returns the current status of the specified zone
     public func getZoneStatus(config : Config, zone : Text) : async* ZoneStatus {
+        // x-server-override (set by spec-merge per input) pins this
+        // operation to the right host for multi-spec merged clients;
+        // when absent we use config.baseUrl as before.
         let {baseUrl; cycles} = config;
         let baseUrl__ = baseUrl # "/{zone}/getStatus"
             |> Text.replace(_, #text "{zone}", zone);
@@ -132,12 +137,12 @@ module {
             case null [];
         };
 
-        let headers = Array.flatten<http_header>([
+        let headers = Array.flatten<HttpHeader>([
             baseHeaders,
             authHeaders
         ]);
 
-        let request : http_request_args = { config with
+        let request : HttpRequestArgs = { config with
             url;
             method = #get;
             headers;
@@ -145,7 +150,7 @@ module {
         };
 
         // Call the management canister's http_request method with cycles
-        let response : http_request_result = await (with cycles) http_request(request);
+        let response : HttpRequestResult = await (with cycles) http_request(request);
 
         // Check HTTP status code before parsing
         if (response.status >= 200 and response.status < 300) {
@@ -154,19 +159,13 @@ module {
                 case (?text) text;
                 case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to decode response body as UTF-8");
             }) |>
-            (switch (JSON.fromText(_, null)) {
-                case (#ok(blob)) blob;
+            (switch (JSON.toCandid(_)) {
+                case (#ok(c__)) c__;
                 case (#err(msg)) throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to parse JSON: " # msg);
             }) |>
-            from_candid(_) : ?ZoneStatus.JSON |>
-            (switch (_) {
-                case (?jsonValue) {
-                    switch (ZoneStatus.fromJSON(jsonValue)) {
-                        case (?value) value;
-                        case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to convert response to ZoneStatus");
-                    }
-                };
-                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response");
+            (switch (ZoneStatus.fromCandidValue(_)) {
+                case (?value) value;
+                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to convert response to ZoneStatus");
             })
         } else {
             // Error response (4xx, 5xx): parse error models and throw
@@ -186,6 +185,9 @@ module {
     ///
     /// Let a device do necessary process before changing input in a specific zone
     public func prepareInputChange(config : Config, zone : Text, input : Text) : async* Any {
+        // x-server-override (set by spec-merge per input) pins this
+        // operation to the right host for multi-spec merged clients;
+        // when absent we use config.baseUrl as before.
         let {baseUrl; cycles} = config;
         let baseUrl__ = baseUrl # "/{zone}/prepareInputChange"
             |> Text.replace(_, #text "{zone}", zone)
@@ -216,12 +218,12 @@ module {
             case null [];
         };
 
-        let headers = Array.flatten<http_header>([
+        let headers = Array.flatten<HttpHeader>([
             baseHeaders,
             authHeaders
         ]);
 
-        let request : http_request_args = { config with
+        let request : HttpRequestArgs = { config with
             url;
             method = #get;
             headers;
@@ -229,7 +231,7 @@ module {
         };
 
         // Call the management canister's http_request method with cycles
-        let response : http_request_result = await (with cycles) http_request(request);
+        let response : HttpRequestResult = await (with cycles) http_request(request);
 
         // Check HTTP status code before parsing
         if (response.status >= 200 and response.status < 300) {
@@ -238,14 +240,13 @@ module {
                 case (?text) text;
                 case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to decode response body as UTF-8");
             }) |>
-            (switch (JSON.fromText(_, null)) {
-                case (#ok(blob)) blob;
+            (switch (JSON.toCandid(_)) {
+                case (#ok(c__)) c__;
                 case (#err(msg)) throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to parse JSON: " # msg);
             }) |>
-            from_candid(_) : ?Any |>
             (switch (_) {
-                case (?result) result;
-                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response");
+                case (#Int(i__)) i__;
+                case _ throw Error.reject("HTTP " # Int.toText(response.status) # ": Unexpected primitive shape");
             })
         } else {
             // Error response (4xx, 5xx): parse error models and throw
@@ -265,10 +266,13 @@ module {
     ///
     /// Sets the input source for the zone
     public func setInput(config : Config, zone : Text, input : SetInputInputParameter, mode : SetInputModeParameter) : async* Any {
+        // x-server-override (set by spec-merge per input) pins this
+        // operation to the right host for multi-spec merged clients;
+        // when absent we use config.baseUrl as before.
         let {baseUrl; cycles} = config;
         let baseUrl__ = baseUrl # "/{zone}/setInput"
             |> Text.replace(_, #text "{zone}", zone)
-            # "?" # "input=" # SetInputInputParameter.toJSON(input) # "&" # "mode=" # SetInputModeParameter.toJSON(mode);
+            # "?" # "input=" # SetInputInputParameter.toText(input) # "&" # "mode=" # SetInputModeParameter.toText(mode);
 
         // Add API key as query parameter if using apiKey auth
         let url = switch (config.auth) {
@@ -295,12 +299,12 @@ module {
             case null [];
         };
 
-        let headers = Array.flatten<http_header>([
+        let headers = Array.flatten<HttpHeader>([
             baseHeaders,
             authHeaders
         ]);
 
-        let request : http_request_args = { config with
+        let request : HttpRequestArgs = { config with
             url;
             method = #get;
             headers;
@@ -308,7 +312,7 @@ module {
         };
 
         // Call the management canister's http_request method with cycles
-        let response : http_request_result = await (with cycles) http_request(request);
+        let response : HttpRequestResult = await (with cycles) http_request(request);
 
         // Check HTTP status code before parsing
         if (response.status >= 200 and response.status < 300) {
@@ -317,14 +321,13 @@ module {
                 case (?text) text;
                 case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to decode response body as UTF-8");
             }) |>
-            (switch (JSON.fromText(_, null)) {
-                case (#ok(blob)) blob;
+            (switch (JSON.toCandid(_)) {
+                case (#ok(c__)) c__;
                 case (#err(msg)) throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to parse JSON: " # msg);
             }) |>
-            from_candid(_) : ?Any |>
             (switch (_) {
-                case (?result) result;
-                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response");
+                case (#Int(i__)) i__;
+                case _ throw Error.reject("HTTP " # Int.toText(response.status) # ": Unexpected primitive shape");
             })
         } else {
             // Error response (4xx, 5xx): parse error models and throw
@@ -344,6 +347,9 @@ module {
     ///
     /// Enables or disables mute for the zone
     public func setMute(config : Config, zone : Text, enable : Bool) : async* Any {
+        // x-server-override (set by spec-merge per input) pins this
+        // operation to the right host for multi-spec merged clients;
+        // when absent we use config.baseUrl as before.
         let {baseUrl; cycles} = config;
         let baseUrl__ = baseUrl # "/{zone}/setMute"
             |> Text.replace(_, #text "{zone}", zone)
@@ -374,12 +380,12 @@ module {
             case null [];
         };
 
-        let headers = Array.flatten<http_header>([
+        let headers = Array.flatten<HttpHeader>([
             baseHeaders,
             authHeaders
         ]);
 
-        let request : http_request_args = { config with
+        let request : HttpRequestArgs = { config with
             url;
             method = #get;
             headers;
@@ -387,7 +393,7 @@ module {
         };
 
         // Call the management canister's http_request method with cycles
-        let response : http_request_result = await (with cycles) http_request(request);
+        let response : HttpRequestResult = await (with cycles) http_request(request);
 
         // Check HTTP status code before parsing
         if (response.status >= 200 and response.status < 300) {
@@ -396,14 +402,13 @@ module {
                 case (?text) text;
                 case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to decode response body as UTF-8");
             }) |>
-            (switch (JSON.fromText(_, null)) {
-                case (#ok(blob)) blob;
+            (switch (JSON.toCandid(_)) {
+                case (#ok(c__)) c__;
                 case (#err(msg)) throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to parse JSON: " # msg);
             }) |>
-            from_candid(_) : ?Any |>
             (switch (_) {
-                case (?result) result;
-                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response");
+                case (#Int(i__)) i__;
+                case _ throw Error.reject("HTTP " # Int.toText(response.status) # ": Unexpected primitive shape");
             })
         } else {
             // Error response (4xx, 5xx): parse error models and throw
@@ -423,6 +428,9 @@ module {
     ///
     /// Sets the sleep timer in minutes (0 to cancel)
     public func setSleep(config : Config, zone : Text, sleep : Nat) : async* Any {
+        // x-server-override (set by spec-merge per input) pins this
+        // operation to the right host for multi-spec merged clients;
+        // when absent we use config.baseUrl as before.
         let {baseUrl; cycles} = config;
         let baseUrl__ = baseUrl # "/{zone}/setSleep"
             |> Text.replace(_, #text "{zone}", zone)
@@ -453,12 +461,12 @@ module {
             case null [];
         };
 
-        let headers = Array.flatten<http_header>([
+        let headers = Array.flatten<HttpHeader>([
             baseHeaders,
             authHeaders
         ]);
 
-        let request : http_request_args = { config with
+        let request : HttpRequestArgs = { config with
             url;
             method = #get;
             headers;
@@ -466,7 +474,7 @@ module {
         };
 
         // Call the management canister's http_request method with cycles
-        let response : http_request_result = await (with cycles) http_request(request);
+        let response : HttpRequestResult = await (with cycles) http_request(request);
 
         // Check HTTP status code before parsing
         if (response.status >= 200 and response.status < 300) {
@@ -475,14 +483,13 @@ module {
                 case (?text) text;
                 case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to decode response body as UTF-8");
             }) |>
-            (switch (JSON.fromText(_, null)) {
-                case (#ok(blob)) blob;
+            (switch (JSON.toCandid(_)) {
+                case (#ok(c__)) c__;
                 case (#err(msg)) throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to parse JSON: " # msg);
             }) |>
-            from_candid(_) : ?Any |>
             (switch (_) {
-                case (?result) result;
-                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response");
+                case (#Int(i__)) i__;
+                case _ throw Error.reject("HTTP " # Int.toText(response.status) # ": Unexpected primitive shape");
             })
         } else {
             // Error response (4xx, 5xx): parse error models and throw
@@ -502,6 +509,9 @@ module {
     ///
     /// Sets the sound program (DSP mode) for the zone
     public func setSoundProgram(config : Config, zone : Text, program : Text) : async* Any {
+        // x-server-override (set by spec-merge per input) pins this
+        // operation to the right host for multi-spec merged clients;
+        // when absent we use config.baseUrl as before.
         let {baseUrl; cycles} = config;
         let baseUrl__ = baseUrl # "/{zone}/setSoundProgram"
             |> Text.replace(_, #text "{zone}", zone)
@@ -532,12 +542,12 @@ module {
             case null [];
         };
 
-        let headers = Array.flatten<http_header>([
+        let headers = Array.flatten<HttpHeader>([
             baseHeaders,
             authHeaders
         ]);
 
-        let request : http_request_args = { config with
+        let request : HttpRequestArgs = { config with
             url;
             method = #get;
             headers;
@@ -545,7 +555,7 @@ module {
         };
 
         // Call the management canister's http_request method with cycles
-        let response : http_request_result = await (with cycles) http_request(request);
+        let response : HttpRequestResult = await (with cycles) http_request(request);
 
         // Check HTTP status code before parsing
         if (response.status >= 200 and response.status < 300) {
@@ -554,14 +564,13 @@ module {
                 case (?text) text;
                 case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to decode response body as UTF-8");
             }) |>
-            (switch (JSON.fromText(_, null)) {
-                case (#ok(blob)) blob;
+            (switch (JSON.toCandid(_)) {
+                case (#ok(c__)) c__;
                 case (#err(msg)) throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to parse JSON: " # msg);
             }) |>
-            from_candid(_) : ?Any |>
             (switch (_) {
-                case (?result) result;
-                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response");
+                case (#Int(i__)) i__;
+                case _ throw Error.reject("HTTP " # Int.toText(response.status) # ": Unexpected primitive shape");
             })
         } else {
             // Error response (4xx, 5xx): parse error models and throw
@@ -581,6 +590,9 @@ module {
     ///
     /// Sets the volume level directly or incrementally
     public func setVolume(config : Config, zone : Text, volume : SetVolumeVolumeParameter, step : Nat) : async* Any {
+        // x-server-override (set by spec-merge per input) pins this
+        // operation to the right host for multi-spec merged clients;
+        // when absent we use config.baseUrl as before.
         let {baseUrl; cycles} = config;
         let baseUrl__ = baseUrl # "/{zone}/setVolume"
             |> Text.replace(_, #text "{zone}", zone)
@@ -611,12 +623,12 @@ module {
             case null [];
         };
 
-        let headers = Array.flatten<http_header>([
+        let headers = Array.flatten<HttpHeader>([
             baseHeaders,
             authHeaders
         ]);
 
-        let request : http_request_args = { config with
+        let request : HttpRequestArgs = { config with
             url;
             method = #get;
             headers;
@@ -624,7 +636,7 @@ module {
         };
 
         // Call the management canister's http_request method with cycles
-        let response : http_request_result = await (with cycles) http_request(request);
+        let response : HttpRequestResult = await (with cycles) http_request(request);
 
         // Check HTTP status code before parsing
         if (response.status >= 200 and response.status < 300) {
@@ -633,14 +645,13 @@ module {
                 case (?text) text;
                 case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to decode response body as UTF-8");
             }) |>
-            (switch (JSON.fromText(_, null)) {
-                case (#ok(blob)) blob;
+            (switch (JSON.toCandid(_)) {
+                case (#ok(c__)) c__;
                 case (#err(msg)) throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to parse JSON: " # msg);
             }) |>
-            from_candid(_) : ?Any |>
             (switch (_) {
-                case (?result) result;
-                case null throw Error.reject("HTTP " # Int.toText(response.status) # ": Failed to deserialize response");
+                case (#Int(i__)) i__;
+                case _ throw Error.reject("HTTP " # Int.toText(response.status) # ": Unexpected primitive shape");
             })
         } else {
             // Error response (4xx, 5xx): parse error models and throw

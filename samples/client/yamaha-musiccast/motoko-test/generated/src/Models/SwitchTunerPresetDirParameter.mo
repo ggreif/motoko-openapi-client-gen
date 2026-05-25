@@ -1,33 +1,36 @@
+import { Candid } "mo:serde-core";
+import Array "mo:core/Array";
+import List "mo:core/List";
+import Float "mo:core/Float";
+import Runtime "mo:core/Runtime";
 
 // SwitchTunerPresetDirParameter.mo
 /// Enum values: #next, #previous
 
 module {
-    // User-facing type: type-safe variants for application code
     public type SwitchTunerPresetDirParameter = {
         #next;
         #previous;
     };
 
-    // JSON sub-module: everything needed for JSON serialization
     public module JSON {
-        // JSON-facing Motoko type: mirrors JSON structure
-        // Named "JSON" to avoid shadowing the outer SwitchTunerPresetDirParameter type
-        public type JSON = Text;
+        public func toCandidValue(value : SwitchTunerPresetDirParameter) : Candid.Candid =
+            switch (value) {
+                case (#next) #Text("next");
+                case (#previous) #Text("previous");
+            };
 
-        // Convert User-facing type to JSON-facing Motoko type
-        public func toJSON(value : SwitchTunerPresetDirParameter) : JSON =
+        public func fromCandidValue(candid : Candid.Candid) : ?SwitchTunerPresetDirParameter =
+            switch (candid) {
+                case (#Text("next")) ?#next;
+                case (#Text("previous")) ?#previous;
+                case _ null;
+            };
+
+        public func toText(value : SwitchTunerPresetDirParameter) : Text =
             switch (value) {
                 case (#next) "next";
                 case (#previous) "previous";
             };
-
-        // Convert JSON-facing Motoko type to User-facing type
-        public func fromJSON(json : JSON) : ?SwitchTunerPresetDirParameter =
-            switch (json) {
-                case "next" ?#next;
-                case "previous" ?#previous;
-                case _ null;
-            };
-    }
-}
+    };
+};
