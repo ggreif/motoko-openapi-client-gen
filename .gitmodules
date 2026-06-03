@@ -16,3 +16,6 @@
 [submodule "samples/client/weatherapi/motoko/generated"]
 	path = samples/client/weatherapi/motoko/generated
 	url = git@github.com:caffeinelabs/weatherapi-client.git
+[submodule "samples/client/googlecalendar/motoko/generated"]
+	path = samples/client/googlecalendar/motoko/generated
+	url = git@github.com:caffeinelabs/googlecalendar-client.git

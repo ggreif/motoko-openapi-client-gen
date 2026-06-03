@@ -1,0 +1,26 @@
+generatorName: motoko
+outputDir: samples/client/googlecalendar/motoko/generated
+inputSpec: samples/client/googlecalendar/motoko/specs/calendar-v3.json
+artifactId: googlecalendar-client
+# 0.0.0 pre-release: enables PATCH (allowPATCH), which the stock IC outcall API
+# doesn't support yet (dfinity/portal#6244). Bumped to 0.1.0 once PATCH lands
+# (or drop allowPATCH for a stock-IC build).
+artifactVersion: 0.0.0
+additionalProperties:
+  hideGenerationTimestamp: "true"
+  # Vanilla mode (no useIcp/useDfx): the client declares its own HttpMethod /
+  # HttpRequestArgs and calls actor "aaaaa-aa" directly. This lets allowPATCH
+  # add #patch to the LOCAL method type — no dependency on mo:ic, so no stock
+  # ic@4.0.0 (which lacks #patch) is referenced. Self-contained PATCH build.
+  diagnostics: true
+  # PATCH support (events.patch, calendars.patch, acl.patch, calendarList.patch).
+  # Emits `method = #patch` (forced non-replicated). The #patch outcall type is
+  # provided at the icp-cli / pocket-ic layer; stock ic@4.0.0 lacks it. Drop
+  # this flag for a build that targets the current IC.
+  allowPATCH: true
+  artifactRepoUrl: "https://github.com/caffeinelabs/googlecalendar-client"
+  # Full surface: 37 operations across 8 tags (acl, calendarList, calendars,
+  # channels, colors, events, freebusy, settings), 34 schemas.  Small enough
+  # that no focusApis pruning is warranted — keep everything.
+  # The skill block is added below after the generated function names have
+  # been verified against src/Apis/*.mo (see new-client Step 8).
