@@ -22,23 +22,34 @@ import org.openapitools.codegen.meta.Stability;
 import org.openapitools.codegen.meta.features.*;
 import org.openapitools.codegen.model.ModelMap;
 import org.openapitools.codegen.model.ModelsMap;
+import org.openapitools.codegen.model.OperationMap;
 import org.openapitools.codegen.model.OperationsMap;
 import org.openapitools.codegen.utils.ModelUtils;
 import io.swagger.v3.oas.models.media.Schema;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.util.*;
 
 public class MotokoClientCodegen extends DefaultCodegen implements CodegenConfig {
+    private static final Logger LOGGER = LoggerFactory.getLogger(MotokoClientCodegen.class);
+
     public static final String PROJECT_NAME = "projectName";
     public static final String USE_DFX = "useDfx";
     public static final String USE_ICP = "useIcp";
     public static final String DIAGNOSTICS = "diagnostics";
+    public static final String ALLOW_PATCH = "allowPATCH";
 
     protected String projectName = "OpenAPI";
     protected boolean useDfx = false;
     protected boolean useIcp = false;
     protected boolean diagnostics = false;
+    // PATCH is not yet a supported IC HTTPS-outcall method (dfinity/portal#6244).
+    // Off by default: PATCH operations are dropped so any spec builds. When on,
+    // `#patch` is emitted (relies on a #patch-bearing `ic` package / pocket-ic)
+    // and forced into non-replicated mode like PUT/DELETE.
+    protected boolean allowPatch = false;
 
     @Override
     public CodegenType getTag() {
@@ -152,6 +163,7 @@ public class MotokoClientCodegen extends DefaultCodegen implements CodegenConfig
         cliOptions.add(CliOption.newBoolean(USE_DFX, "Use ic:aaaaa-aa imports (dfx toolchain). Mutually exclusive with useIcp.", useDfx));
         cliOptions.add(CliOption.newBoolean(USE_ICP, "Use ic:aaaaa-aa imports and generate icp.yaml (icp-cli toolchain; replaces dfx). Mutually exclusive with useDfx.", useIcp));
         cliOptions.add(CliOption.newBoolean(DIAGNOSTICS, "Emit `Runtime.trap` with diagnostic messages at code paths the generator detected as likely-incorrect (e.g. oneOf collapsed to empty record). Use during development to surface generator gaps clearly instead of producing silently-bad JSON.", diagnostics));
+        cliOptions.add(CliOption.newBoolean(ALLOW_PATCH, "Emit PATCH operations (method = #patch), forced to non-replicated mode like PUT/DELETE. The IC management canister does not support PATCH yet (dfinity/portal#6244), so this requires a #patch-bearing `ic` package / pocket-ic. When false (default), PATCH operations are dropped so the client still builds.", allowPatch));
 
         // Enable inline enum resolution to create model files for inline enum parameters
         // This ensures type-safe enum variants instead of raw Text types
@@ -188,6 +200,11 @@ public class MotokoClientCodegen extends DefaultCodegen implements CodegenConfig
             setDiagnostics(convertPropertyToBooleanAndWriteBack(DIAGNOSTICS));
         }
         additionalProperties.put(DIAGNOSTICS, diagnostics);
+
+        if (additionalProperties.containsKey(ALLOW_PATCH)) {
+            setAllowPatch(convertPropertyToBooleanAndWriteBack(ALLOW_PATCH));
+        }
+        additionalProperties.put(ALLOW_PATCH, allowPatch);
     }
 
     @Override
@@ -239,6 +256,32 @@ public class MotokoClientCodegen extends DefaultCodegen implements CodegenConfig
         return name;
     }
 
+    @Override
+    public String toOperationId(String operationId) {
+        // Method name must be non-empty (base class enforces this).
+        if (operationId == null || operationId.isEmpty()) {
+            throw new RuntimeException("Empty method name (operationId) not allowed");
+        }
+
+        // Sanitize exactly like toVarName: the default toOperationId returns the
+        // operationId verbatim, so specs with dot-separated IDs (Google APIs:
+        // `calendar.events.list`) or other punctuation would emit illegal Motoko
+        // `public func` names. Replace any non-identifier char with `_`.
+        String name = operationId.replaceAll("[^A-Za-z0-9_]", "_");
+
+        // Handle reserved words by appending underscore
+        if (isReservedWord(name)) {
+            name = escapeReservedWord(name);
+        }
+
+        // Ensure valid Motoko identifier (starts with letter or underscore)
+        if (!name.isEmpty() && !Character.isJavaIdentifierStart(name.charAt(0))) {
+            name = "_" + name;
+        }
+
+        return name;
+    }
+
     public void setProjectName(String projectName) {
         this.projectName = projectName;
     }
@@ -261,6 +304,14 @@ public class MotokoClientCodegen extends DefaultCodegen implements CodegenConfig
 
     public boolean getDiagnostics() {
         return diagnostics;
+    }
+
+    public void setAllowPatch(boolean allowPatch) {
+        this.allowPatch = allowPatch;
+    }
+
+    public boolean getAllowPatch() {
+        return allowPatch;
     }
 
     public void setUseIcp(boolean useIcp) {
@@ -1430,6 +1481,30 @@ public class MotokoClientCodegen extends DefaultCodegen implements CodegenConfig
         result.put("usesBasicAuth", usesBasicAuth);
         result.put("apiKeyHeaderName", apiKeyHeaderName);
         result.put("apiKeyQueryName", apiKeyQueryName);
+
+        // Per-operation HTTP-method flags. CodegenOperation has no isPut/isDelete/
+        // isPatch booleans, so the template's `is_replicated = ?false` overrides for
+        // mutating verbs need explicit vendor extensions to fire. PUT/DELETE/PATCH
+        // must run non-replicated on the IC (a replicated mutation is sent once per
+        // replica). When allowPATCH is off, PATCH operations are dropped entirely so
+        // any spec still builds against the current `{get;head;post;put;delete}` type.
+        OperationMap operationMap = result.getOperations();
+        if (operationMap != null && operationMap.getOperation() != null) {
+            Iterator<CodegenOperation> opIter = operationMap.getOperation().iterator();
+            while (opIter.hasNext()) {
+                CodegenOperation op = opIter.next();
+                String method = op.httpMethod == null ? "" : op.httpMethod.toUpperCase(Locale.ROOT);
+                boolean isPatch = "PATCH".equals(method);
+                if (isPatch && !allowPatch) {
+                    LOGGER.info("Dropping PATCH operation '{}' (allowPATCH=false; IC outcalls lack PATCH — dfinity/portal#6244)", op.operationId);
+                    opIter.remove();
+                    continue;
+                }
+                op.vendorExtensions.put("x-is-put", "PUT".equals(method));
+                op.vendorExtensions.put("x-is-delete", "DELETE".equals(method));
+                op.vendorExtensions.put("x-is-patch", isPatch);
+            }
+        }
 
         // Response code processing is implemented in api.mustache template
         // - HTTP status codes are checked before parsing (2xx vs 4xx/5xx)

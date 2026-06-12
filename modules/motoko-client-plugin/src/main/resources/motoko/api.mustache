@@ -58,7 +58,8 @@ module {
         #post;
         #put;    // Non-replicated only (is_replicated forced to ?false in generated code)
         #delete; // Non-replicated only (is_replicated forced to ?false in generated code)
-    };
+        {{#allowPATCH}}#patch;  // Non-replicated only; NOT idempotent in general (RFC 5789) — merge bodies only
+        {{/allowPATCH}}};
 
     type HttpRequestArgs = {
         url : Text;
@@ -149,9 +150,10 @@ module {
             url;
             method = #{{#lambda.lowercase}}{{httpMethod}}{{/lambda.lowercase}};
             headers;
-            {{#isPut}}is_replicated = ?false; // PUT requires non-replicated mode on IC
-            {{/isPut}}{{#isDelete}}is_replicated = ?false; // DELETE requires non-replicated mode on IC
-            {{/isDelete}}body = {{#bodyParam}}do ? {
+            {{#vendorExtensions.x-is-put}}is_replicated = ?false; // PUT requires non-replicated mode on IC
+            {{/vendorExtensions.x-is-put}}{{#vendorExtensions.x-is-delete}}is_replicated = ?false; // DELETE requires non-replicated mode on IC
+            {{/vendorExtensions.x-is-delete}}{{#vendorExtensions.x-is-patch}}is_replicated = ?false; // PATCH: non-replicated mutation (not idempotent in general)
+            {{/vendorExtensions.x-is-patch}}body = {{#bodyParam}}do ? {
                 let candidValue : Candid.Candid = {{#vendorExtensions.x-body-is-array}}{{#vendorExtensions.x-body-array-element-is-primitive}}#Array(Array.map<{{{vendorExtensions.x-body-base-type}}}, Candid.Candid>({{paramName}}, func(s : Text) : Candid.Candid = #Text(s))){{/vendorExtensions.x-body-array-element-is-primitive}}{{^vendorExtensions.x-body-array-element-is-primitive}}#Array(Array.map<{{{vendorExtensions.x-body-base-type}}}, Candid.Candid>({{paramName}}, {{{vendorExtensions.x-body-base-type}}}.toCandidValue)){{/vendorExtensions.x-body-array-element-is-primitive}}{{/vendorExtensions.x-body-is-array}}{{^vendorExtensions.x-body-is-array}}{{#vendorExtensions.x-body-is-text}}#Text({{paramName}}){{/vendorExtensions.x-body-is-text}}{{#vendorExtensions.x-body-is-blob}}#Blob({{paramName}}){{/vendorExtensions.x-body-is-blob}}{{#vendorExtensions.x-body-is-int}}#Int({{paramName}}){{/vendorExtensions.x-body-is-int}}{{#vendorExtensions.x-body-is-nat}}#Nat({{paramName}}){{/vendorExtensions.x-body-is-nat}}{{#vendorExtensions.x-body-is-float}}#Float({{paramName}}){{/vendorExtensions.x-body-is-float}}{{#vendorExtensions.x-body-is-bool}}#Bool({{paramName}}){{/vendorExtensions.x-body-is-bool}}{{^vendorExtensions.x-body-is-primitive}}{{dataType}}.toCandidValue({{paramName}}){{/vendorExtensions.x-body-is-primitive}}{{/vendorExtensions.x-body-is-array}};
                 let #ok(jsonText) = JSON.fromCandid(candidValue)
                     else throw Error.reject("Failed to serialize body to JSON");
