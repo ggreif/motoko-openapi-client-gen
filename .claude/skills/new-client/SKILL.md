@@ -43,12 +43,24 @@ Create `bin/configs/motoko-<name>.yaml`:
 generatorName: motoko
 outputDir: samples/client/<name>/motoko/generated
 inputSpec: samples/client/<name>/motoko/specs/<spec-file>
-templateDir: modules/openapi-generator/src/main/resources/motoko
+# No templateDir: the out-of-tree plugin bundles the ONLY motoko template
+# tree (modules/motoko-client-plugin/src/main/resources/motoko). Setting
+# templateDir would point at a path that no longer exists.
 artifactId: <name>-client
 artifactVersion: 0.1.0
 additionalProperties:
   hideGenerationTimestamp: "true"
-  useDfx: false
+  useIcp: true        # icp-cli toolchain (mo:ic imports + icp.yaml). The
+                      # legacy useDfx path is superseded — don't use it.
+  diagnostics: true   # emit Runtime.trap at generator-detected gaps during dev
+  # allowPATCH: true  # only if the API uses HTTP PATCH (e.g. Google). Emits
+                      # `method = #patch`. REQUIRES vanilla mode (omit useIcp
+                      # AND useDfx) so the client declares its OWN HttpMethod
+                      # and #patch can be added to it. Under useIcp the type
+                      # comes from `mo:ic`, which has no #patch and can't be
+                      # extended — so allowPATCH only works vanilla. Off = PATCH
+                      # ops dropped. PATCH calls still need a PATCH-enabled IC
+                      # at runtime (dfinity/portal#6244).
   artifactRepoUrl: "https://github.com/caffeinelabs/<name>-client"
 ```
 
@@ -365,12 +377,24 @@ Add a `focusApis` section to the generator config YAML:
 generatorName: motoko
 outputDir: samples/client/<name>/motoko/generated
 inputSpec: samples/client/<name>/motoko/specs/<spec-file>
-templateDir: modules/openapi-generator/src/main/resources/motoko
+# No templateDir: the out-of-tree plugin bundles the ONLY motoko template
+# tree (modules/motoko-client-plugin/src/main/resources/motoko). Setting
+# templateDir would point at a path that no longer exists.
 artifactId: <name>-client
 artifactVersion: 0.1.0
 additionalProperties:
   hideGenerationTimestamp: "true"
-  useDfx: false
+  useIcp: true        # icp-cli toolchain (mo:ic imports + icp.yaml). The
+                      # legacy useDfx path is superseded — don't use it.
+  diagnostics: true   # emit Runtime.trap at generator-detected gaps during dev
+  # allowPATCH: true  # only if the API uses HTTP PATCH (e.g. Google). Emits
+                      # `method = #patch`. REQUIRES vanilla mode (omit useIcp
+                      # AND useDfx) so the client declares its OWN HttpMethod
+                      # and #patch can be added to it. Under useIcp the type
+                      # comes from `mo:ic`, which has no #patch and can't be
+                      # extended — so allowPATCH only works vanilla. Off = PATCH
+                      # ops dropped. PATCH calls still need a PATCH-enabled IC
+                      # at runtime (dfinity/portal#6244).
   artifactRepoUrl: "https://github.com/caffeinelabs/<name>-client"
 
 # Custom: generate.sh prunes to these APIs + their transitive model deps.
@@ -713,4 +737,7 @@ automatically.
 - **Spec is in `.gitignore`?** Check — large specs (1MB+) should be committed (they're source)
 - **LICENSE + CODEOWNERS + CHANGELOG**: Caffeine clients must ship Apache-2.0 `LICENSE`, `.github/CODEOWNERS` (`* @caffeinelabs/team-languages`), and a seeded `CHANGELOG.md`. Added in Step 10 — easy to miss on fast pushes. `mops publish` falls back to the GitHub release body when `CHANGELOG.md` is absent (with a warning)
 - **SKILL.md is mandatory for production clients** — Step 8 (research → template → verify). A connector without a skill is just a mops package; the skill is what makes it discoverable to the composer
+- **Templates & codegen have ONE home**: `modules/motoko-client-plugin/` (the `src/main/resources/motoko/*.mustache` tree and `MotokoClientCodegen.java`). The old fork copies under `modules/openapi-generator/.../motoko` were removed — editing there has no effect. After changing the plugin, rebuild it (`nix develop --command bash -c '(cd modules/motoko-client-plugin && mvn -DskipTests package)'`) before regenerating
+- **Dot/punctuation in operationIds** (Google: `calendar.events.list`) are sanitized to underscores by `toOperationId` → `calendar_events_list`. No action needed; just don't expect the dotted name in the generated API
+- **HTTP PATCH**: the IC management canister doesn't support PATCH yet (dfinity/portal#6244). For PATCH-using APIs, generate in **vanilla mode** (omit `useIcp`/`useDfx`) and set `allowPATCH: true` — vanilla declares its own `HttpMethod`, so `#patch` is just added there (no `mo:ic`, which can't be extended). PATCH outcalls still need a PATCH-enabled IC/pocket-ic at runtime. Leave `allowPATCH` off to drop PATCH ops and ship the rest. See `.claude/plans/patch.md`
 - After wiring, update `MEMORY.md` with the new client entry
