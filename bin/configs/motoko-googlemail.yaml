@@ -1,0 +1,145 @@
+generatorName: motoko
+outputDir: samples/client/googlemail/motoko/generated
+inputSpec: samples/client/googlemail/motoko/specs/gmail-v1.json
+artifactId: googlemail-client
+artifactVersion: 0.1.0
+additionalProperties:
+  hideGenerationTimestamp: "true"
+  useIcp: true        # icp-cli toolchain (mo:ic imports + icp.yaml). The
+                      # legacy useDfx path is superseded — don't use it.
+  diagnostics: true   # emit Runtime.trap at generator-detected gaps during dev
+  # No allowPATCH: Gmail's send surface (messages.send, drafts.send, drafts.create)
+  # is entirely POST/GET.  The 3 PATCH ops (labels.patch, settings.cse.identities.patch,
+  # settings.sendAs.patch) are outside the send PoC scope and are dropped silently.
+  artifactRepoUrl: "https://github.com/caffeinelabs/googlemail-client"
+  # focusApis: send-focused surface.  Gmail uses dotted operationIds; the
+  # generate.sh filter keeps ops whose operationId equals or starts with any
+  # listed prefix + "." .
+  # gmail.users.messages.send — send an email (non-idempotent, always replicated)
+  # gmail.users.messages.get  — retrieve sent/received message (read, ?false)
+  # gmail.users.messages.list — list messages in mailbox (read, ?false)
+  # gmail.users.drafts.*      — create/send/get/list drafts
+  # gmail.users.getProfile    — user email address + quota info
+  skill: |
+    ---
+    name: extension-gmail-send
+    description: >-
+      Use the `googlemail-client` mops package whenever the user asks the
+      canister to send email, compose a draft, list or read Gmail messages, or
+      fetch the authenticated user's Gmail profile.  The package wraps the Gmail
+      REST API v1 at `https://gmail.googleapis.com` via outbound HTTPS calls.
+    version: 0.1.0
+    compatibility:
+      mops:
+        googlemail-client: "~0.1.0"
+    ---
+
+    # googlemail-client
+
+    Motoko bindings for the [Gmail API v1](https://developers.google.com/gmail/api),
+    generated from Google's official OpenAPI spec.
+
+    Send-focused PoC surface: `gmail_users_messages_send`,
+    `gmail_users_drafts_{create,send,get,list}`, `gmail_users_messages_{get,list}`,
+    `gmail_users_getProfile`. All 8 operations live in `Apis/UsersApi.mo`.
+
+    ## Trigger phrases
+
+    Reach for this skill on any request mentioning: send email, send message,
+    compose email, Gmail, draft, inbox, mailbox, "email the user", "notify via
+    email", "forward results by email", "send a notification email".
+
+    ## How Gmail authentication works (read before wiring)
+
+    Gmail uses **OAuth 2.0 Authorization Code** flow — there is no static API key.
+    The canister never mints a token on its own; the user completes an OAuth dance
+    off-chain and passes in the resulting **Bearer access token** at call time.
+
+    Token lifetime: **1 hour** by default (Google's access tokens).  After expiry
+    the API returns HTTP 401.  The refresh token must be exchanged off-chain too —
+    the canister cannot call Google's token endpoint (that would expose the client
+    secret on-chain).  Surface a `#Err("auth_expired")` result and ask the caller
+    to re-authenticate.
+
+    Required OAuth 2.0 scope for `messages.send`: `https://www.googleapis.com/auth/gmail.send`.
+    For read access add: `https://www.googleapis.com/auth/gmail.readonly`.
+
+    ## Usage
+
+    ```motoko
+    import { gmail_users_messages_send; gmail_users_getProfile;
+             gmail_users_drafts_create; gmail_users_drafts_send }
+      "mo:googlemail-client/Apis/UsersApi";
+    import { Message; type Message } "mo:googlemail-client/Models/Message";
+    import { Draft; type Draft } "mo:googlemail-client/Models/Draft";
+    import { defaultConfig } "mo:googlemail-client/Config";
+    import Base64 "mo:base64";   // for RFC 2822 body encoding
+
+    // Shared cfg — swap in the caller's short-lived bearer token.
+    let cfg = {
+      defaultConfig with
+        auth               = ?#bearer "<off-chain OAuth2 access token>";
+        max_response_bytes = ?500_000;
+        is_replicated      = null;  // mutations: always replicated (consensus)
+    };
+
+    // Send a message (raw RFC 2822, base64url-encoded in the `raw` field).
+    // Build the raw bytes off-chain and pass as a Blob.
+    let outMsg = Message.init {};   // all-null base, then layer fields:
+    let envelope : Message = { outMsg with raw = ?<base64url-encoded-rfc2822> };
+    let result = await* gmail_users_messages_send(cfg,
+      "me",         // userId: "me" = authenticated user
+      #_1_,         // $.xgafv — use #_1_ (v1) for all calls
+      "",           // accessToken — leave "" when auth = ?#bearer above
+      #json,        // alt
+      "", "", "", "", true, "", "", "",   // callback/fields/key/oauthToken/prettyPrint/quotaUser/uploadProtocol/uploadType
+      envelope
+    );
+
+    // Get the authenticated user's email address
+    let profile = await* gmail_users_getProfile(cfg, "me",
+      #_1_, "", #json, "", "", "", "", true, "", "", "");
+    let ?email = profile.emailAddress else return #Err("no email");
+    ```
+
+    ## Notes
+
+    - `is_replicated = null` (replicated) is **required** for `gmail_users_messages_send`
+      and `gmail_users_drafts_send` — they are **non-idempotent**: sending twice
+      delivers two emails. Never use `?false` (non-replicated) for send operations.
+      A single compromised boundary node could suppress or duplicate a send if
+      non-replicated is used. Reads (`gmail_users_messages_list`, `gmail_users_messages_get`,
+      `gmail_users_getProfile`) may use `is_replicated = ?false` to save ~13× cycles.
+    - The `$.xgafv` parameter (version discriminator) should always be `#_1_` for
+      Gmail API v1 calls.  The `alt` parameter should always be `#json`.
+    - All optional string parameters (`callback`, `fields`, `key`, `oauthToken`,
+      `quotaUser`, `uploadProtocol`, `uploadType`) accept `""` to omit them;
+      `prettyPrint` can be `false`.
+    - `userId` = `"me"` refers to the authenticated user. Explicit email addresses
+      also work but require the `https://mail.google.com/` scope.
+    - Messages must be encoded as RFC 2822 format and base64url-encoded before
+      passing in the `raw` field of `Message`.  The `Message.payload` / `MessagePart`
+      fields are for parsed read responses — don't try to build them for sending.
+    - Google returns HTTP 429 on rate-limit (quota exceeded).  Surface the error to
+      the caller; never silently retry inside the canister — a send retry may
+      deliver duplicates.
+    - Access tokens expire in 1 hour.  On 401, surface `#Err("auth_expired")` so
+      the caller can re-authenticate off-chain and retry with a fresh token.
+    - `Draft.message` holds a `Message`; `gmail_users_drafts_create` builds a draft
+      server-side. Use `gmail_users_drafts_send` to send a draft by its `id`.
+    - `max_response_bytes`: Gmail message reads can be large.  500 KB covers typical
+      messages; bump to 2 MB for messages with large payloads (Gmail API's max
+      response is bounded by the API, but set conservatively for cycle budgets).
+    - Cycle budget: `defaultConfig.cycles = 30_000_000_000` (30B).  On the IC,
+      outbound HTTPS calls cost ~10–15B cycles for a typical send.  Adjust if
+      you see `InsufficientCycles` errors.
+
+focusApis:
+  - gmail.users.messages.send
+  - gmail.users.messages.get
+  - gmail.users.messages.list
+  - gmail.users.drafts.create
+  - gmail.users.drafts.send
+  - gmail.users.drafts.get
+  - gmail.users.drafts.list
+  - gmail.users.getProfile
