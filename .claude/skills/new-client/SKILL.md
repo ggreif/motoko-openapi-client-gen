@@ -409,6 +409,9 @@ The generator itself ignores unknown YAML keys, so `focusApis` is invisible to
 `openapi-generator-cli`. It is read exclusively by `generate.sh`.
 
 Tag names match the API file prefix: `Chat` → `ChatApi.mo`, `Models` → `ModelsApi.mo`.
+**Exception — Google/Workspace (Discovery-sourced) specs** tag everything under the
+*top* resource, collapsing into a single API file, so file-level matching can't prune
+within it; see "Google / Workspace APIs" below for operation-level pruning.
 
 ### How `generate.sh` implements pruning
 
@@ -472,6 +475,25 @@ The 8 focused APIs (Chat, Completions, Models, Embeddings, Images, Audio,
 Moderations, Files) cover the most common OpenAI use cases. The remaining
 15 APIs (Assistants, Realtime, VectorStores, etc.) and their ~1,000
 exclusive models are pruned away.
+
+### Google / Workspace APIs (Discovery-sourced)
+
+Google's Discovery→OpenAPI specs (Gmail, Calendar, Drive, Docs, …) diverge from the
+tag-per-API model above in three ways — know them before you curate:
+
+- **One API file, not per-sub-resource.** Operations are tagged under the *top*
+  resource, so the whole spec collapses into a single `<Resource>Api.mo` (all of
+  Gmail's 79 ops → one `UsersApi.mo`). Phase-2 file pruning therefore can't prune
+  *within* it.
+- **Prune at operation granularity, by dotted-operationId prefix.** List `focusApis`
+  as dotted operation prefixes (`gmail.users.messages.send`,
+  `gmail.users.drafts.create`, …) and have `generate.sh` filter *operations* by those
+  prefixes — not whole API files. (`samples/client/googlemail/motoko/generate.sh` does
+  exactly this; googlecalendar's hyphen-split filter does not.) The dotted IDs are then
+  sanitized to underscores in the generated names — see Key Reminders.
+- **Quirk enum tags.** Google's spec-wide `$.xgafv` param yields a `…XgafvParameter`
+  with variants `#_1_` / `#_2_`, and `alt` → `#json`. They sanitize unintuitively, so
+  always grep-verify the actual tag before writing it into the skill example.
 
 ## Step 8 — Draft the SKILL.md (research → template → verify)
 
@@ -623,6 +645,8 @@ renamed, or a variant tag that came out as `#snake_case` not
 
 ```bash
 # (1) Every function name must exist in src/Apis/
+#     Expect TWO hits per function — the outer `async*` wrapper + the inner
+#     actor implementation. That's normal, not duplicate generation.
 grep -E "^[[:space:]]*public func <realFunctionName>" \
   samples/client/<name>/motoko/generated/src/Apis/*.mo
 
