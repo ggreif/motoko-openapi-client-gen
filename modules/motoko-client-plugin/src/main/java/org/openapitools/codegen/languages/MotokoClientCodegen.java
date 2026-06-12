@@ -120,7 +120,7 @@ public class MotokoClientCodegen extends DefaultCodegen implements CodegenConfig
         reservedWords.addAll(Arrays.asList(
             "actor", "and", "assert", "async", "await", "break", "case", "catch", "class",
             "continue", "debug", "do", "else", "false", "for", "func", "if",
-            "in", "import", "module", "not", "null", "object", "or", "label",
+            "in", "import", "include", "module", "not", "null", "object", "or", "label",
             "let", "loop", "private", "public", "query", "return", "shared", "switch",
             "system", "throw", "true", "try", "type", "var", "while", "with"
         ));
@@ -911,6 +911,16 @@ public class MotokoClientCodegen extends DefaultCodegen implements CodegenConfig
                             // Check for unsigned fields (Nat types converted from Int)
                             if (Boolean.TRUE.equals(prop.vendorExtensions.get("x-is-unsigned"))) {
                                 hasUnsignedFields = true;
+                            }
+
+                            // Detect self-referential array items (e.g. MessagePart.parts : [MessagePart]).
+                            // When items.dataType == model.classname, the generated toCandidValue /
+                            // fromCandidValue in the JSON sub-module must use JSON.toCandidValue /
+                            // JSON.fromCandidValue (same module) instead of MessagePart.toCandidValue
+                            // (which resolves to the *type* alias in the outer module, not a module).
+                            if (Boolean.TRUE.equals(prop.isArray) && prop.items != null
+                                    && model.classname.equals(prop.items.dataType)) {
+                                prop.items.vendorExtensions.put("x-is-self-ref", true);
                             }
 
                             // Collect escaped field names (where Motoko name differs from JSON name)

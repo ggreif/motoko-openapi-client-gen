@@ -11,8 +11,9 @@ switch ({{name}}_field.1) {
                                 List.add(buf__, n__);{{/vendorExtensions.x-is-unsigned}}{{^vendorExtensions.x-is-unsigned}}{{#isInteger}}let ?i__ = (switch (c__) { case (#Int(j)) ?j; case (#Nat(k)) ?k; case _ null }) else return null;
                                 List.add(buf__, i__);{{/isInteger}}{{^isInteger}}{{#isLong}}{{^isInteger}}let ?i__ = (switch (c__) { case (#Int(j)) ?j; case (#Nat(k)) ?k; case _ null }) else return null;
                                 List.add(buf__, i__);{{/isInteger}}{{/isLong}}{{^isLong}}{{#isEnumRef}}let ?e__ = {{{datatypeWithEnum}}}.fromCandidValue(c__) else return null;
-                                List.add(buf__, e__);{{/isEnumRef}}{{^isEnumRef}}{{#complexType}}let ?m__ = {{{dataType}}}.fromCandidValue(c__) else return null;
-                                List.add(buf__, m__);{{/complexType}}{{^complexType}}let m__ : {{{dataType}}} = Runtime.unreachable();
+                                List.add(buf__, e__);{{/isEnumRef}}{{^isEnumRef}}{{#complexType}}{{#vendorExtensions.x-is-self-ref}}let ?m__ = JSON.fromCandidValue(c__) else return null;
+                                List.add(buf__, m__);{{/vendorExtensions.x-is-self-ref}}{{^vendorExtensions.x-is-self-ref}}let ?m__ = {{{dataType}}}.fromCandidValue(c__) else return null;
+                                List.add(buf__, m__);{{/vendorExtensions.x-is-self-ref}}{{/complexType}}{{^complexType}}let m__ : {{{dataType}}} = Runtime.unreachable();
                                 List.add(buf__, m__);{{/complexType}}{{/isEnumRef}}{{/isLong}}{{/isInteger}}{{/vendorExtensions.x-is-unsigned}}{{/isNumber}}{{/isDouble}}{{/isFloat}}{{/isBoolean}}{{/isString}}{{/items}}
                             };
                             ?List.toArray(buf__);
