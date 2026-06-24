@@ -2,7 +2,7 @@ generatorName: motoko
 outputDir: samples/client/googlemail/motoko/generated
 inputSpec: samples/client/googlemail/motoko/specs/gmail-v1.json
 artifactId: googlemail-client
-artifactVersion: 0.1.0
+artifactVersion: 0.1.1
 additionalProperties:
   hideGenerationTimestamp: "true"
   useIcp: true        # icp-cli toolchain (mo:ic imports + icp.yaml). The
@@ -11,7 +11,7 @@ additionalProperties:
   # No allowPATCH: Gmail's send surface (messages.send, drafts.send, drafts.create)
   # is entirely POST/GET.  The 3 PATCH ops (labels.patch, settings.cse.identities.patch,
   # settings.sendAs.patch) are outside the send PoC scope and are dropped silently.
-  artifactRepoUrl: "https://github.com/caffeinelabs/googlemail-client"
+  artifactRepoUrl: "https://github.com/caffeinelabs/skills"
   # focusApis: send-focused surface.  Gmail uses dotted operationIds; the
   # generate.sh filter keeps ops whose operationId equals or starts with any
   # listed prefix + "." .
@@ -22,16 +22,16 @@ additionalProperties:
   # gmail.users.getProfile    — user email address + quota info
   skill: |
     ---
-    name: extension-gmail-send
+    name: connector-googlemail
     description: >-
       Use the `googlemail-client` mops package whenever the user asks the
       canister to send email, compose a draft, list or read Gmail messages, or
       fetch the authenticated user's Gmail profile.  The package wraps the Gmail
       REST API v1 at `https://gmail.googleapis.com` via outbound HTTPS calls.
-    version: 0.1.0
+    version: 0.1.1
     compatibility:
       mops:
-        googlemail-client: "~0.1.0"
+        googlemail-client: "~0.1.1"
     ---
 
     # googlemail-client
