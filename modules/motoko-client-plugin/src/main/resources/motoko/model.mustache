@@ -20,6 +20,13 @@ import Runtime "mo:core/Runtime";
 {{#vendorExtensions.x-has-unsigned-fields}}
 import Int "mo:core/Int";
 {{/vendorExtensions.x-has-unsigned-fields}}
+{{#vendorExtensions.x-has-blob-fields}}
+import Base64 "mo:core/Base64";
+import Blob "mo:core/Blob";
+import Char "mo:core/Char";
+import Nat8 "mo:core/Nat8";
+import Nat32 "mo:core/Nat32";
+{{/vendorExtensions.x-has-blob-fields}}
 
 {{#isEnum}}
 // {{classname}}.mo
@@ -242,6 +249,9 @@ module {
     public type {{classname}} = Required and Optional;
 
     public module JSON {
+{{#vendorExtensions.x-has-blob-fields}}
+{{>base64_decode}}
+{{/vendorExtensions.x-has-blob-fields}}
         // `init` constructs a {{classname}} from just its required fields,
         // defaulting all optional fields to `null`. Pair with record-update
         // syntax to layer in selected optionals:
