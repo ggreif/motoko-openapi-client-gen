@@ -2,7 +2,7 @@ generatorName: motoko
 outputDir: samples/client/googlemail/motoko/generated
 inputSpec: samples/client/googlemail/motoko/specs/gmail-v1.json
 artifactId: googlemail-client
-artifactVersion: 0.1.2
+artifactVersion: 0.1.3
 additionalProperties:
   hideGenerationTimestamp: "true"
   useIcp: true        # icp-cli toolchain (mo:ic imports + icp.yaml). The
@@ -28,10 +28,10 @@ additionalProperties:
       canister to send email, compose a draft, list or read Gmail messages, or
       fetch the authenticated user's Gmail profile.  The package wraps the Gmail
       REST API v1 at `https://gmail.googleapis.com` via outbound HTTPS calls.
-    version: 0.1.2
+    version: 0.1.3
     compatibility:
       mops:
-        googlemail-client: "~0.1.2"
+        googlemail-client: "~0.1.3"
     ---
 
     # googlemail-client
@@ -80,7 +80,7 @@ additionalProperties:
       defaultConfig with
         auth               = ?#bearer "<off-chain OAuth2 access token>";
         max_response_bytes = ?500_000;
-        is_replicated      = null;  // mutations: always replicated (consensus)
+        is_replicated      = ?false; // non-replicated: required for sends (see Notes); reads too
     };
 
     // Send a message. `raw` is the PLAIN RFC 2822 message as a Blob — the client
@@ -105,12 +105,15 @@ additionalProperties:
 
     ## Notes
 
-    - `is_replicated = null` (replicated) is **required** for `gmail_users_messages_send`
-      and `gmail_users_drafts_send` — they are **non-idempotent**: sending twice
-      delivers two emails. Never use `?false` (non-replicated) for send operations.
-      A single compromised boundary node could suppress or duplicate a send if
-      non-replicated is used. Reads (`gmail_users_messages_list`, `gmail_users_messages_get`,
-      `gmail_users_getProfile`) may use `is_replicated = ?false` to save ~13× cycles.
+    - **Use `is_replicated = ?false` (non-replicated) for sends** (`gmail_users_messages_send`,
+      `gmail_users_drafts_send`). These outcalls are **non-idempotent** and Gmail's response
+      is **non-deterministic** (unique message `id`, per-request `Date` header). In
+      *replicated* mode (`null`) every subnet replica issues the request — so the email is
+      sent **once per replica** (duplicates) **and** the differing responses fail IC
+      consensus (*"No consensus could be reached. Replicas had different responses"*).
+      Non-replicated has a single node perform exactly one send. Reads
+      (`gmail_users_messages_list`, `gmail_users_messages_get`, `gmail_users_getProfile`)
+      also use `?false` (one node, ~13× cheaper).
     - The `$.xgafv` parameter (version discriminator) should always be `#_1_` for
       Gmail API v1 calls.  The `alt` parameter should always be `#json`.
     - All optional string parameters (`callback`, `fields`, `key`, `oauthToken`,
