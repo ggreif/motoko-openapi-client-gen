@@ -2,7 +2,7 @@ generatorName: motoko
 outputDir: samples/client/googlemail/motoko/generated
 inputSpec: samples/client/googlemail/motoko/specs/gmail-v1.json
 artifactId: googlemail-client
-artifactVersion: 0.1.1
+artifactVersion: 0.1.2
 additionalProperties:
   hideGenerationTimestamp: "true"
   useIcp: true        # icp-cli toolchain (mo:ic imports + icp.yaml). The
@@ -28,10 +28,10 @@ additionalProperties:
       canister to send email, compose a draft, list or read Gmail messages, or
       fetch the authenticated user's Gmail profile.  The package wraps the Gmail
       REST API v1 at `https://gmail.googleapis.com` via outbound HTTPS calls.
-    version: 0.1.1
+    version: 0.1.2
     compatibility:
       mops:
-        googlemail-client: "~0.1.1"
+        googlemail-client: "~0.1.2"
     ---
 
     # googlemail-client
@@ -73,7 +73,7 @@ additionalProperties:
     import { Message; type Message } "mo:googlemail-client/Models/Message";
     import { Draft; type Draft } "mo:googlemail-client/Models/Draft";
     import { defaultConfig } "mo:googlemail-client/Config";
-    import Base64 "mo:base64";   // for RFC 2822 body encoding
+    import Text "mo:core/Text";  // Text.encodeUtf8: build the raw RFC 2822 Blob
 
     // Shared cfg — swap in the caller's short-lived bearer token.
     let cfg = {
@@ -83,10 +83,11 @@ additionalProperties:
         is_replicated      = null;  // mutations: always replicated (consensus)
     };
 
-    // Send a message (raw RFC 2822, base64url-encoded in the `raw` field).
-    // Build the raw bytes off-chain and pass as a Blob.
+    // Send a message. `raw` is the PLAIN RFC 2822 message as a Blob — the client
+    // base64-encodes it for the Gmail API; do NOT base64-encode it yourself.
+    let mime : Text = "From: me\r\nTo: friend@example.com\r\nSubject: Hi\r\n\r\nHello!";
     let outMsg = Message.init {};   // all-null base, then layer fields:
-    let envelope : Message = { outMsg with raw = ?<base64url-encoded-rfc2822> };
+    let envelope : Message = { outMsg with raw = ?Text.encodeUtf8(mime) };
     let result = await* gmail_users_messages_send(cfg,
       "me",         // userId: "me" = authenticated user
       #_1_,         // $.xgafv — use #_1_ (v1) for all calls
@@ -117,9 +118,11 @@ additionalProperties:
       `prettyPrint` can be `false`.
     - `userId` = `"me"` refers to the authenticated user. Explicit email addresses
       also work but require the `https://mail.google.com/` scope.
-    - Messages must be encoded as RFC 2822 format and base64url-encoded before
-      passing in the `raw` field of `Message`.  The `Message.payload` / `MessagePart`
-      fields are for parsed read responses — don't try to build them for sending.
+    - Messages must be in RFC 2822 format, passed as a **plain `Blob`** in the `raw`
+      field (e.g. `?Text.encodeUtf8(mime)`). The client base64-encodes `raw` for the
+      API — do **not** base64-encode it yourself (that double-encodes and Gmail
+      rejects it). The `Message.payload` / `MessagePart` fields are for parsed read
+      responses — don't try to build them for sending.
     - Google returns HTTP 429 on rate-limit (quota exceeded).  Surface the error to
       the caller; never silently retry inside the canister — a send retry may
       deliver duplicates.

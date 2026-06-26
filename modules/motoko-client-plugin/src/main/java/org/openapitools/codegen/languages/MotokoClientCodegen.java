@@ -897,6 +897,8 @@ public class MotokoClientCodegen extends DefaultCodegen implements CodegenConfig
                     boolean hasEnumFields = false;
                     // Track if this model has any unsigned (Nat) fields
                     boolean hasUnsignedFields = false;
+                    // Track if this model has any blob (base64) fields
+                    boolean hasBlobFields = false;
 
                     if (model.vars != null) {
                         // Collect field name mappings
@@ -911,6 +913,15 @@ public class MotokoClientCodegen extends DefaultCodegen implements CodegenConfig
                             // Check for unsigned fields (Nat types converted from Int)
                             if (Boolean.TRUE.equals(prop.vendorExtensions.get("x-is-unsigned"))) {
                                 hasUnsignedFields = true;
+                            }
+
+                            // Check for blob fields (base64-encoded as Text in JSON bodies).
+                            // Detect by dataType, not the x-is-blob flag: that flag is only
+                            // set later by backfillPrimitiveFlags (postProcessAllModels), which
+                            // runs after this pass. dataType is set early, so it is reliable here.
+                            if ("Blob".equals(prop.dataType)
+                                    || (prop.items != null && "Blob".equals(prop.items.dataType))) {
+                                hasBlobFields = true;
                             }
 
                             // Detect self-referential array items (e.g. MessagePart.parts : [MessagePart]).
@@ -979,6 +990,11 @@ public class MotokoClientCodegen extends DefaultCodegen implements CodegenConfig
                     // Mark models that have unsigned (Nat) fields (need Int import for conversion)
                     if (hasUnsignedFields) {
                         model.vendorExtensions.put("x-has-unsigned-fields", true);
+                    }
+
+                    // Mark models that have blob fields (need Base64 import for JSON encoding)
+                    if (hasBlobFields) {
+                        model.vendorExtensions.put("x-has-blob-fields", true);
                     }
                 }
             }
